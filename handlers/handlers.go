@@ -1,26 +1,25 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/julienschmidt/httprouter"
-)
 
-type channelController struct {
-	list      http.Handler
-	get       http.Handler
-	create    http.Handler
-	subscribe http.Handler
-}
+	"github.com/goslang/bifrost/engine"
+)
 
 func NewRouter() *httprouter.Router {
 	r := httprouter.New()
 
-	r.GET("/api/channels", listChannels)
-	r.GET("/api/channels/:name", getChannel)
-	r.POST("/api/channels/:name", createChannel)
+	eng := engine.New(5)
+	channels := NewChannelController(eng)
 
-	r.GET("/api/channels/:name/subscribe", subscribe)
+	r.GET("/api/channels", channels.list)
+	r.GET("/api/channels/:name", channels.get)
+	r.POST("/api/channels/:name", channels.create)
+	r.DELETE("/api/channels/:name", channels.delete)
+
+	r.GET("/api/channels/:name/subscribe", channels.subscribe)
+	r.POST("/api/channels/:name/publish", channels.publish)
+	r.PATCH("/api/channels/:name/pop", channels.pop)
 
 	return r
 }
