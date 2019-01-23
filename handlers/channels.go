@@ -105,7 +105,7 @@ func (cc *channelController) subscribe(
 		select {
 		case message, ok := <-cc.engine.Listen(channelName):
 			if !ok {
-				break
+				return
 			}
 
 			err := c.WriteMessage(websocket.TextMessage, message)

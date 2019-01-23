@@ -9,7 +9,7 @@ import (
 func NewRouter() *httprouter.Router {
 	r := httprouter.New()
 
-	eng := engine.New(5)
+	eng := engine.New()
 	channels := NewChannelController(eng)
 
 	r.GET("/api/channels", channels.list)

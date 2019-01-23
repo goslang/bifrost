@@ -1,79 +1,82 @@
 package engine
 
 import (
+	"context"
 	"errors"
 )
 
 var (
-	ErrNoRoute     = errors.New("Route not found.")
-	ErrBufferFull  = errors.New("Route buffer full.")
-	ErrBufferEmpty = errors.New("Route buffer empty.")
+	ErrNoQueue     = errors.New("Queue not found.")
+	ErrBufferFull  = errors.New("Queue buffer full.")
+	ErrBufferEmpty = errors.New("Queue buffer empty.")
 )
 
 type Engine struct {
-	// maxBuf is the number of messages to buffer before dropping
-	// messages.
-	maxBuf int
+	state     *DataStore
+	listeners map[int64]Listener
 
-	routes map[string]*Route
+	// listenerID tracks the current to make sure it returns a new ID when a
+	// new listener is added.
+	listenerID int64
 }
 
-func New(maxBuf int) *Engine {
+func New() *Engine {
 	return &Engine{
-		maxBuf: maxBuf,
-		routes: make(map[string]*Route),
+		state:     NewDataStore(),
+		listeners: make(map[int64]Listener),
 	}
 }
 
-func (eng *Engine) AddChannel(channelName string) {
-	eng.routes[channelName] = &Route{
-		ch: make(chan []byte, eng.maxBuf),
+// Register Registers a new listener that will be called when the state
+// changes. Returns an int64 ID that can be used to deregister the listener
+// when it's no longer needed
+func (eng *Engine) Register(listener Listener) int64 {
+	nextId := eng.listenerID++
+	eng.listeners[nextId] = listener
+	return nextId
+}
+
+// Deregister will remove the listener with the matching ID, so it will not be
+// run any more.
+func (eng *Engine) Deregister(listenerID int64) {
+	delete(eng.listeners, listenerID)
+}
+
+// Process will read and process events from eventCh until the context is
+// done.
+func (eng *Engine) Process(ctx context.Context, eventCh <-chan Event) error {
+	for {
+		select {
+		case evt := <-evtCh:
+			eng.processEvent(evt)
+			eng.runListeners()
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
-func (eng *Engine) RemoveChannel(channelName string) {
-	route, ok := eng.routes[channelName]
-	if ok {
-		route.Close()
-		eng.routes[channelName] = nil
-	}
+func (eng *Engine) processEvt(evt Event) {
+	eng.State = eng.State.MakeNewState()
+	evt.Transition(eng.State)
 }
 
-func (eng *Engine) Publish(channelName string, message []byte) error {
-	route, ok := eng.routes[channelName]
-	if !ok {
-		return ErrNoRoute
+func (eng *Engine) runListeners() {
+	for _, listener := range eng.Listeners {
+		go func(listener Listener) {
+			listener(eng.State)
+		}(listener)
 	}
-
-	select {
-	case route.ch <- message:
-		return nil
-	default:
-		return ErrBufferFull
-	}
-}
-
-func (eng *Engine) Listen(channelName string) <-chan []byte {
-	route, ok := eng.routes[channelName]
-	if !ok {
-		// Make and return a closed channel if the requested channel does not
-		// exist in the engine.
-		ch := make(chan []byte)
-		close(ch)
-		return ch
-	}
-
-	return route.ch
 }
 
 func (eng *Engine) Pop(channelName string) ([]byte, error) {
-	route, ok := eng.routes[channelName]
+	queue, ok := eng.queues[channelName]
 	if !ok {
-		return nil, ErrNoRoute
+		return nil, ErrNoQueue
 	}
 
 	select {
-	case message := <-route.ch:
+	case message := <-queue.ch:
 		return message, nil
 	default:
 		return nil, ErrBufferEmpty
