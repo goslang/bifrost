@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
@@ -21,7 +22,8 @@ var upgrader = websocket.Upgrader{
 }
 
 type channelController struct {
-	engine *engine.Engine
+	engine   *engine.Engine
+	eventsCh chan engine.Event
 }
 
 func NewChannelController(eng *engine.Engine) *channelController {
@@ -36,7 +38,11 @@ func (cc *channelController) create(
 	p httprouter.Params,
 ) {
 	name := p.ByName("name")
-	cc.engine.AddChannel(name)
+	cc.eventsCh <- AddChannel(name)
+
+	responder.New(w).Json(map[string]string{
+		"status": "ok",
+	})()
 }
 
 func (cc *channelController) get(
@@ -59,13 +65,13 @@ func (cc *channelController) list(
 	})()
 }
 
-func (cc *channelController) delete(
+func (cc *channelController) destroy(
 	w http.ResponseWriter,
 	req *http.Request,
 	p httprouter.Params,
 ) {
 	name := p.ByName("name")
-	cc.engine.RemoveChannel(name)
+	cc.eventsCh <- engine.RemoveChannel(name)
 
 	responder.New(w).Json(map[string]string{
 		"status": "ok",
@@ -134,9 +140,9 @@ func (cc *channelController) publish(
 			})()
 	}
 
-	if err := cc.engine.Publish(name, buf); err != nil {
-		log.Println(err)
-		log.Println("WARNING: Failed to publish message on channel", name)
+	cc.eventsCh <- &engine.PushEvent{
+		QueueName: name,
+		Data:      buf,
 	}
 
 	responder.New(w).Json(map[string]string{
@@ -150,15 +156,19 @@ func (cc *channelController) pop(
 	p httprouter.Params,
 ) {
 	name := p.ByName("name")
-	message, err := cc.engine.Pop(name)
-	if err != nil {
-		responder.New(w).Json(map[string]string{
-			"error": err.Error(),
-		})()
-		return
-	}
+	ch := make(chan []byte)
+	defer close(ch)
 
-	responder.New(w).Json(map[string]string{
-		"message": string(message),
-	})()
+	cc.eventsCh <- engine.Pop(name, ch)
+
+	select {
+	case message := <-ch:
+		responder.New(w).Json(map[string]string{
+			"message": string(message),
+		})()
+	case <-time.After(10 * time.Second):
+		responder.New(w).
+			Status(http.StatusServiceUnavailable).
+			Json(map[string]string{})()
+	}
 }

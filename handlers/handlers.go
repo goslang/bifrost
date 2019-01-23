@@ -15,7 +15,7 @@ func NewRouter() *httprouter.Router {
 	r.GET("/api/channels", channels.list)
 	r.GET("/api/channels/:name", channels.get)
 	r.POST("/api/channels/:name", channels.create)
-	r.DELETE("/api/channels/:name", channels.delete)
+	r.DELETE("/api/channels/:name", channels.destroy)
 
 	r.GET("/api/channels/:name/subscribe", channels.subscribe)
 	r.POST("/api/channels/:name/publish", channels.publish)
