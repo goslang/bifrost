@@ -12,6 +12,7 @@ func Start() error {
 	router := handlers.NewRouter()
 
 	app, use := middleware.Wrap(router)
+	use(middleware.NewCors("*"))
 	use(&middleware.RequestLogger{})
 
 	return http.ListenAndServe(":2727", app)

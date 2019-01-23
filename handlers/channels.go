@@ -12,7 +12,13 @@ import (
 	"github.com/goslang/bifrost/lib/responder"
 )
 
-var upgrader = websocket.Upgrader{}
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(_ *http.Request) bool {
+		// Allow everything right now. Our CORS Middleware should protect us
+		// from any attacks.
+		return true
+	},
+}
 
 type channelController struct {
 	engine *engine.Engine
@@ -77,7 +83,23 @@ func (cc *channelController) subscribe(
 	if err != nil {
 		return
 	}
-	defer c.Close()
+	defer func() {
+		c.Close()
+	}()
+
+	closed := make(chan bool)
+	go func() {
+		for {
+			// Watch for a closed connection. Apparently writing to a closed
+			// connection doesn't fail as expected, so continually try to read
+			// and if that fails, signal the main loop to exit.
+			_, _, err := c.ReadMessage()
+			if err != nil {
+				close(closed)
+				return
+			}
+		}
+	}()
 
 	for {
 		select {
@@ -86,11 +108,12 @@ func (cc *channelController) subscribe(
 				break
 			}
 
-			err := c.WriteMessage(1, message)
+			err := c.WriteMessage(websocket.TextMessage, message)
 			if err != nil {
-				log.Println("write:", err)
-				break
+				return
 			}
+		case <-closed:
+			return
 		}
 	}
 }
@@ -111,8 +134,8 @@ func (cc *channelController) publish(
 			})()
 	}
 
-	// NOTE: Ignoring error atm
 	if err := cc.engine.Publish(name, buf); err != nil {
+		log.Println(err)
 		log.Println("WARNING: Failed to publish message on channel", name)
 	}
 
