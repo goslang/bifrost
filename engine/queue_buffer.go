@@ -2,30 +2,30 @@ package engine
 
 type QueueBuffer [][]byte
 
-func (qb *QueueBuffer) pop() ([]byte, *QueueBuffer, ok) {
+func (qb QueueBuffer) pop() ([]byte, QueueBuffer, bool) {
 	if qb.IsEmpty() {
-		return nil, *qb, false
+		return nil, qb, false
 	}
 
 	message := qb[0]
-	newQ := append(qb[:0:0], qb[1:len(qb)])
+	newQ := append(qb[:0:0], qb[1:len(qb)]...)
 
 	return message, newQ, true
 }
 
-func (qb *QueueBuffer) push(message []byte) (*QueueBuffer, ok) {
+func (qb QueueBuffer) push(message []byte) (QueueBuffer, bool) {
 	if qb.IsFull() {
 		return qb, false
 	}
 
 	newQ := append(qb, message)
-	return newQ
+	return newQ, true
 }
 
-func (qb *QueueBuffer) IsFull() bool {
+func (qb QueueBuffer) IsFull() bool {
 	return len(qb) == cap(qb)
 }
 
-func (qb *QueueByffer) IsEmpty() bool {
+func (qb QueueBuffer) IsEmpty() bool {
 	return len(qb) < 1
 }

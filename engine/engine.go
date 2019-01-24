@@ -31,9 +31,11 @@ func New() *Engine {
 // changes. Returns an int64 ID that can be used to deregister the listener
 // when it's no longer needed
 func (eng *Engine) Register(listener Listener) int64 {
-	nextId := eng.listenerID++
-	eng.listeners[nextId] = listener
-	return nextId
+	// TODO: This function is a race condition waiting to happen, wrap in a
+	// mutex.
+	eng.listenerID++
+	eng.listeners[eng.listenerID] = listener
+	return eng.listenerID
 }
 
 // Deregister will remove the listener with the matching ID, so it will not be
@@ -47,38 +49,38 @@ func (eng *Engine) Deregister(listenerID int64) {
 func (eng *Engine) Process(ctx context.Context, eventCh <-chan Event) error {
 	for {
 		select {
-		case evt := <-evtCh:
+		case evt := <-eventCh:
 			eng.processEvent(evt)
 			eng.runListeners()
 		case <-ctx.Done():
-			return
+			return nil
 		}
 	}
 }
 
-func (eng *Engine) processEvt(evt Event) {
-	eng.State = eng.State.MakeNewState()
-	evt.Transition(eng.State)
+func (eng *Engine) processEvent(evt Event) {
+	eng.state = eng.state.MakeNewState()
+	evt.Transition(eng.state)
 }
 
 func (eng *Engine) runListeners() {
-	for _, listener := range eng.Listeners {
+	for _, listener := range eng.listeners {
 		go func(listener Listener) {
-			listener(eng.State)
+			listener(eng.state)
 		}(listener)
 	}
 }
 
-func (eng *Engine) Pop(channelName string) ([]byte, error) {
-	queue, ok := eng.queues[channelName]
-	if !ok {
-		return nil, ErrNoQueue
-	}
-
-	select {
-	case message := <-queue.ch:
-		return message, nil
-	default:
-		return nil, ErrBufferEmpty
-	}
-}
+//func (eng *Engine) Pop(channelName string) ([]byte, error) {
+//	queue, ok := eng.queues[channelName]
+//	if !ok {
+//		return nil, ErrNoQueue
+//	}
+//
+//	select {
+//	case message := <-queue.ch:
+//		return message, nil
+//	default:
+//		return nil, ErrBufferEmpty
+//	}
+//}

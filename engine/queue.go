@@ -21,5 +21,5 @@ func (q *Queue) Push(message []byte) *Queue {
 }
 
 func (q *Queue) pop() {
-	q.ch <- q.messageBuffer[len(messageBuffer)-1]
+	q.ch <- q.messageBuffer[len(q.messageBuffer)-1]
 }

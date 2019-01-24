@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"io/ioutil"
-	"log"
 	"net/http"
 	"time"
 
@@ -38,7 +37,7 @@ func (cc *channelController) create(
 	p httprouter.Params,
 ) {
 	name := p.ByName("name")
-	cc.eventsCh <- AddChannel(name)
+	cc.eventsCh <- engine.AddChannel(name)
 
 	responder.New(w).Json(map[string]string{
 		"status": "ok",
@@ -107,7 +106,7 @@ func (cc *channelController) subscribe(
 		}
 	}()
 
-	listener, messageCh := ChangeListener(channelName)
+	listener, messageCh := engine.ChangeListener(channelName)
 	// defer close(messageCh) // Not safe, other goroutine maybe writing.
 
 	id := cc.engine.Register(listener)

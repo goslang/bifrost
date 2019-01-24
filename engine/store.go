@@ -12,7 +12,7 @@ type DataStore struct {
 
 func NewDataStore() *DataStore {
 	return &DataStore{
-		Buffers: make(map[string]QueueBuffer,
+		Buffers: make(map[string]QueueBuffer),
 	}
 }
 

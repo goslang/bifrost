@@ -2,23 +2,23 @@ package engine
 
 type Listener func(state *DataStore) Event
 
-func ChangeListener(queueName string) (Listener, publishCh <-chan []byte) {
+func ChangeListener(queueName string) (Listener, <-chan []byte) {
 	// We're using lock to make sure only one publish is happening at a time.
 	lock := make(chan bool, 1)
 	unlock := func() { <-lock }
 	publishCh := make(chan []byte)
 
-	return func(state *DataStore) {
+	listener := func(state *DataStore) Event {
 		select {
-		case lock <- 1:
+		case lock <- true:
 		default:
 			// Someone is reading this queue, nothing for us to do.
-			return
+			return nil
 		}
 
 		q, ok := state.Buffers[queueName]
 		if !ok || q.IsEmpty() {
-			return
+			return nil
 		}
 
 		return Pop(queueName, func(message []byte) {
@@ -26,4 +26,6 @@ func ChangeListener(queueName string) (Listener, publishCh <-chan []byte) {
 			publishCh <- message
 		})
 	}
+
+	return listener, publishCh
 }
