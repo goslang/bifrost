@@ -22,9 +22,9 @@ func PushMessage(name string, message []byte) (Event, <-chan bool) {
 			return
 		}
 
-		newQ := q.push(message)
-		ds.Buffers[name] = newQ
-		confirmCh <- true
+		if ok := q.push(message); ok {
+			confirmCh <- ok
+		}
 	}
 
 	return fn, confirmCh
@@ -38,7 +38,7 @@ func AddChannel(name string) Event {
 		}
 
 		// TODO: Configure the buffer size.
-		ds.Buffers[name] = NewQueue()
+		ds.Buffers[name] = NewQueue(5)
 	}
 
 	return fn
@@ -67,6 +67,29 @@ func Pop(queueName string) (Event, <-chan []byte) {
 			publishCh <- message
 			close(publishCh)
 		}()
+	}
+
+	return fn, publishCh
+}
+
+func PopNow(queueName string) (Event, <-chan []byte) {
+	publishCh := make(chan []byte)
+
+	var fn EventFn = func(ds *DataStore) {
+		defer close(publishCh)
+
+		q, ok := ds.Buffers[queueName]
+		if !ok {
+			return
+		}
+
+		select {
+		case message, ok := <-q.pop():
+			if ok {
+				publishCh <- message
+			}
+		default:
+		}
 	}
 
 	return fn, publishCh
