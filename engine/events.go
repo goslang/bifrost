@@ -17,12 +17,12 @@ type PushEvent struct {
 }
 
 func (evt *PushEvent) Transition(ds *DataStore) {
-	qb, ok := ds.Buffers[evt.QueueName]
+	q, ok := ds.Buffers[evt.QueueName]
 	if !ok {
 		return
 	}
 
-	newQ, _ := qb.push(evt.Data)
+	newQ := q.push(evt.Data)
 	ds.Buffers[evt.QueueName] = newQ
 }
 
@@ -34,7 +34,7 @@ func AddChannel(name string) Event {
 		}
 
 		// TODO: Configure the buffer size.
-		ds.Buffers[name] = make(QueueBuffer, 5)
+		ds.Buffers[name] = NewQueue()
 	}
 
 	return fn
@@ -48,20 +48,22 @@ func RemoveChannel(name string) Event {
 	return fn
 }
 
-func Pop(queueName string, callback func(message []byte)) Event {
-	// TODO: accepting a `callback` is probably an antipattern
+func Pop(queueName string) (Event, <-chan []byte) {
+	publishCh := make(chan []byte)
 
 	var fn EventFn = func(ds *DataStore) {
 		q, ok := ds.Buffers[queueName]
 		if !ok {
+			close(publishCh)
 			return
 		}
 
-		message, newQ, ok := q.pop()
-		ds.Buffers[queueName] = newQ
-
-		go callback(message)
+		go func() {
+			message := <-q.pop()
+			publishCh <- message
+			close(publishCh)
+		}()
 	}
 
-	return fn
+	return fn, publishCh
 }

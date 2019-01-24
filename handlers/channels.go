@@ -21,13 +21,12 @@ var upgrader = websocket.Upgrader{
 }
 
 type channelController struct {
-	engine   *engine.Engine
-	eventsCh chan engine.Event
+	eventsCh chan<- engine.Event
 }
 
-func NewChannelController(eng *engine.Engine) *channelController {
+func NewChannelController(ch chan<- engine.Event) *channelController {
 	return &channelController{
-		engine: eng,
+		eventsCh: ch,
 	}
 }
 
@@ -106,13 +105,15 @@ func (cc *channelController) subscribe(
 		}
 	}()
 
-	listener, messageCh := engine.ChangeListener(channelName)
-	// defer close(messageCh) // Not safe, other goroutine maybe writing.
-
-	id := cc.engine.Register(listener)
-	defer cc.engine.Deregister(id)
-
 	for {
+		evt, messageCh := engine.Pop(channelName)
+
+		select {
+		case cc.eventsCh <- evt:
+		case <-closed:
+			return
+		}
+
 		select {
 		case message, ok := <-messageCh:
 			if !ok {
@@ -161,12 +162,9 @@ func (cc *channelController) pop(
 	p httprouter.Params,
 ) {
 	name := p.ByName("name")
-	ch := make(chan []byte)
-	defer close(ch)
 
-	cc.eventsCh <- engine.Pop(name, func(message []byte) {
-		ch <- message
-	})
+	evt, ch := engine.Pop(name)
+	cc.eventsCh <- evt
 
 	select {
 	case message := <-ch:

@@ -1,7 +1,7 @@
 package engine
 
 type DataStore struct {
-	Buffers map[string]QueueBuffer
+	Buffers map[string]*Queue
 
 	// TODO: Currently this will form an endless chain of previous states,
 	// which, while really cool, will eventually consume all memory and
@@ -12,7 +12,7 @@ type DataStore struct {
 
 func NewDataStore() *DataStore {
 	return &DataStore{
-		Buffers: make(map[string]QueueBuffer),
+		Buffers: make(map[string]*Queue),
 	}
 }
 

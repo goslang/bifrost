@@ -47,11 +47,13 @@ func (eng *Engine) Deregister(listenerID int64) {
 // Process will read and process events from eventCh until the context is
 // done.
 func (eng *Engine) Process(ctx context.Context, eventCh <-chan Event) error {
+	println(">>>> Engine beginning to process")
 	for {
 		select {
 		case evt := <-eventCh:
+			println(">>>> Processing event")
 			eng.processEvent(evt)
-			eng.runListeners()
+			//eng.runListeners()
 		case <-ctx.Done():
 			return nil
 		}
@@ -70,17 +72,3 @@ func (eng *Engine) runListeners() {
 		}(listener)
 	}
 }
-
-//func (eng *Engine) Pop(channelName string) ([]byte, error) {
-//	queue, ok := eng.queues[channelName]
-//	if !ok {
-//		return nil, ErrNoQueue
-//	}
-//
-//	select {
-//	case message := <-queue.ch:
-//		return message, nil
-//	default:
-//		return nil, ErrBufferEmpty
-//	}
-//}
