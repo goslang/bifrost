@@ -7,23 +7,27 @@ type Event interface {
 
 type EventFn func(*DataStore)
 
-func (fn *EventFn) Transition(*ds DataStore) {
+func (fn EventFn) Transition(ds *DataStore) {
 	fn(ds)
 }
 
-type PushEvent struct {
-	QueueName string
-	Data      []byte
-}
+func PushMessage(name string, message []byte) (Event, <-chan bool) {
+	confirmCh := make(chan bool, 1)
 
-func (evt *PushEvent) Transition(ds *DataStore) {
-	qb, ok := ds.Buffers[QueueName]
-	if !ok {
-		return
+	var fn EventFn = func(ds *DataStore) {
+		defer close(confirmCh)
+
+		q, ok := ds.Buffers[name]
+		if !ok {
+			return
+		}
+
+		newQ := q.push(message)
+		ds.Buffers[name] = newQ
+		confirmCh <- true
 	}
 
-	newBuffer, _ := qb.push(evt.Data)
-	ds.Buffers[evt.QueueName] = newBuffer
+	return fn, confirmCh
 }
 
 func AddChannel(name string) Event {
@@ -33,7 +37,8 @@ func AddChannel(name string) Event {
 			return
 		}
 
-		ds.Buffers[name] = make(QueueBuffer)
+		// TODO: Configure the buffer size.
+		ds.Buffers[name] = NewQueue()
 	}
 
 	return fn
@@ -43,21 +48,26 @@ func RemoveChannel(name string) Event {
 	var fn EventFn = func(ds *DataStore) {
 		delete(ds.Buffers, name)
 	}
+
+	return fn
 }
 
-func Pop(queueName, publishCh) Event {
+func Pop(queueName string) (Event, <-chan []byte) {
+	publishCh := make(chan []byte)
+
 	var fn EventFn = func(ds *DataStore) {
-		q, ok := state.Buffers[queueName]
+		q, ok := ds.Buffers[queueName]
 		if !ok {
+			close(publishCh)
 			return
 		}
 
-		message, newQ, ok := q.pop()
-		ds[queueName] = newQ
-
-		// hmmm... there's still allot that could go wrong here.
 		go func() {
+			message := <-q.pop()
 			publishCh <- message
-		}
+			close(publishCh)
+		}()
 	}
+
+	return fn, publishCh
 }

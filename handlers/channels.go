@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"io/ioutil"
-	"log"
 	"net/http"
 	"time"
 
@@ -22,13 +21,12 @@ var upgrader = websocket.Upgrader{
 }
 
 type channelController struct {
-	engine   *engine.Engine
-	eventsCh chan engine.Event
+	eventsCh chan<- engine.Event
 }
 
-func NewChannelController(eng *engine.Engine) *channelController {
+func NewChannelController(ch chan<- engine.Event) *channelController {
 	return &channelController{
-		engine: eng,
+		eventsCh: ch,
 	}
 }
 
@@ -38,7 +36,7 @@ func (cc *channelController) create(
 	p httprouter.Params,
 ) {
 	name := p.ByName("name")
-	cc.eventsCh <- AddChannel(name)
+	cc.eventsCh <- engine.AddChannel(name)
 
 	responder.New(w).Json(map[string]string{
 		"status": "ok",
@@ -101,6 +99,8 @@ func (cc *channelController) subscribe(
 			// and if that fails, signal the main loop to exit.
 			_, _, err := c.ReadMessage()
 			if err != nil {
+				println(">>>> Closing connection")
+				println(err.Error())
 				close(closed)
 				return
 			}
@@ -108,9 +108,18 @@ func (cc *channelController) subscribe(
 	}()
 
 	for {
+		evt, messageCh := engine.Pop(channelName)
+
 		select {
-		case message, ok := <-cc.engine.Listen(channelName):
+		case cc.eventsCh <- evt:
+		case <-closed:
+			return
+		}
+
+		select {
+		case message, ok := <-messageCh:
 			if !ok {
+				println("Channel closed")
 				return
 			}
 
@@ -140,9 +149,14 @@ func (cc *channelController) publish(
 			})()
 	}
 
-	cc.eventsCh <- &engine.PushEvent{
-		QueueName: name,
-		Data:      buf,
+	evt, confirmCh := engine.PushMessage(name, buf)
+	cc.eventsCh <- evt
+	_, ok := <-confirmCh
+	if !ok {
+		responder.New(w).Json(map[string]string{
+			"status": "error",
+		})()
+		return
 	}
 
 	responder.New(w).Json(map[string]string{
@@ -156,10 +170,9 @@ func (cc *channelController) pop(
 	p httprouter.Params,
 ) {
 	name := p.ByName("name")
-	ch := make(chan []byte)
-	defer close(ch)
 
-	cc.eventsCh <- engine.Pop(name, ch)
+	evt, ch := engine.Pop(name)
+	cc.eventsCh <- evt
 
 	select {
 	case message := <-ch:
