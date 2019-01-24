@@ -45,7 +45,7 @@ func RemoveChannel(name string) Event {
 	}
 }
 
-func Pop(queueName, publishCh) Event {
+func Pop(queueName, fn func()) Event {
 	var fn EventFn = func(ds *DataStore) {
 		q, ok := state.Buffers[queueName]
 		if !ok {
@@ -55,9 +55,6 @@ func Pop(queueName, publishCh) Event {
 		message, newQ, ok := q.pop()
 		ds[queueName] = newQ
 
-		// hmmm... there's still allot that could go wrong here.
-		go func() {
-			publishCh <- message
-		}
+		go fn()
 	}
 }

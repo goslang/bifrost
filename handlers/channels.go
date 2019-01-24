@@ -107,9 +107,15 @@ func (cc *channelController) subscribe(
 		}
 	}()
 
+	listener, messageCh := ChangeListener(channelName)
+	// defer close(messageCh) // Not safe, other goroutine maybe writing.
+
+	id := cc.engine.Register(listener)
+	defer cc.engine.Deregister(id)
+
 	for {
 		select {
-		case message, ok := <-cc.engine.Listen(channelName):
+		case message, ok := <-messageCh:
 			if !ok {
 				return
 			}
@@ -159,7 +165,9 @@ func (cc *channelController) pop(
 	ch := make(chan []byte)
 	defer close(ch)
 
-	cc.eventsCh <- engine.Pop(name, ch)
+	cc.eventsCh <- engine.Pop(name, func(message []byte) {
+		ch <- message
+	})
 
 	select {
 	case message := <-ch:
