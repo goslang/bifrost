@@ -151,6 +151,7 @@ func (cc *channelController) publish(
 
 	evt, confirmCh := engine.PushMessage(name, buf)
 	cc.eventsCh <- evt
+	println(">>>> Waiting for confirmation")
 	_, ok := <-confirmCh
 	if !ok {
 		responder.New(w).Json(map[string]string{
@@ -171,17 +172,26 @@ func (cc *channelController) pop(
 ) {
 	name := p.ByName("name")
 
-	evt, ch := engine.Pop(name)
+	evt, ch := engine.PopNow(name)
 	cc.eventsCh <- evt
 
 	select {
-	case message := <-ch:
+	case message, ok := <-ch:
+		if !ok {
+			responder.New(w).Status(404).Json(map[string]string{
+				"status": "error",
+			})()
+			return
+		}
+
 		responder.New(w).Json(map[string]string{
 			"message": string(message),
 		})()
-	case <-time.After(10 * time.Second):
+	case <-time.After(5 * time.Second):
 		responder.New(w).
 			Status(http.StatusServiceUnavailable).
-			Json(map[string]string{})()
+			Json(map[string]string{
+				"error": "timeout",
+			})()
 	}
 }

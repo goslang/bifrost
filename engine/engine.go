@@ -37,6 +37,5 @@ func (eng *Engine) Process(ctx context.Context, eventCh <-chan Event) error {
 }
 
 func (eng *Engine) processEvent(evt Event) {
-	eng.state = eng.state.MakeNewState()
 	evt.Transition(eng.state)
 }

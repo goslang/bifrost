@@ -15,16 +15,3 @@ func NewDataStore() *DataStore {
 		Buffers: make(map[string]*Queue),
 	}
 }
-
-func (ds *DataStore) MakeNewState() *DataStore {
-	newDs := NewDataStore()
-
-	newDs.prev = ds
-	ds.next = newDs
-
-	for k, v := range ds.Buffers {
-		newDs.Buffers[k] = v
-	}
-
-	return newDs
-}

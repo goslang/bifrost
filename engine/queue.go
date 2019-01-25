@@ -1,23 +1,20 @@
 package engine
 
-import (
-	"sync"
-)
-
+// Queue is essentially a ring buffer.
 type Queue struct {
-	Buffer [][]byte
+	Buffer   [][]byte
+	writeIdx int
+	limiter  chan bool
 
-	idx int
-	mu  *sync.Mutex
-	ch  chan []byte
+	// push channel that new items are sent to.
+	ch chan []byte
 }
 
-func NewQueue() *Queue {
+func NewQueue(size int) *Queue {
 	q := &Queue{
-		// TODO: Make this configurable.
-		Buffer: make([][]byte, 5),
-		mu:     &sync.Mutex{},
-		ch:     make(chan []byte),
+		Buffer:  make([][]byte, size),
+		limiter: make(chan bool, size),
+		ch:      make(chan []byte),
 	}
 
 	return q
@@ -27,22 +24,21 @@ func (q *Queue) Close() {
 	close(q.ch)
 }
 
-func (q *Queue) push(message []byte) *Queue {
-	newQ := *q
-	newQ.Buffer = make([][]byte, len(q.Buffer))
-	copy(newQ.Buffer, q.Buffer)
+func (q *Queue) push(message []byte) bool {
+	select {
+	case q.limiter <- true:
+	default:
+		return false
+	}
 
-	println(">>>> Adding message to buffer")
-	println(">>>>", string(message))
-	newQ.write(message)
-	println("idx =", q.idx)
+	q.write(message)
 
-	// TODO: Cap the maximum number of goroutines here.
-	go func(message []byte) {
-		newQ.ch <- message
-	}(newQ.Buffer[newQ.readIdx()])
+	go func() {
+		q.ch <- message
+		<-q.limiter
+	}()
 
-	return &newQ
+	return true
 }
 
 func (q *Queue) pop() <-chan []byte {
@@ -50,21 +46,19 @@ func (q *Queue) pop() <-chan []byte {
 }
 
 func (q *Queue) write(message []byte) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
+	newIdx := q.incr(q.writeIdx)
 
-	q.Buffer[q.idx] = message
-	q.idx++
+	q.Buffer[q.writeIdx] = message
+	q.writeIdx = newIdx
 
-	if q.idx == len(q.Buffer) {
-		q.idx = 0
-	}
+	return
 }
 
-func (q *Queue) readIdx() int {
-	if q.idx == 0 {
-		return len(q.Buffer) - 1
+// incr increments idx by 1 unless it equals len(q.Buffer), and then restarts
+// it at 0.
+func (q *Queue) incr(idx int) int {
+	if idx == len(q.Buffer)-1 {
+		return 0
 	}
-
-	return q.idx - 1
+	return idx + 1
 }
