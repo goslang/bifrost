@@ -24,11 +24,9 @@ func New() *Engine {
 // Process will read and process events from eventCh until the context is
 // done.
 func (eng *Engine) Process(ctx context.Context, eventCh <-chan Event) error {
-	println(">>>> Engine beginning to process")
 	for {
 		select {
 		case evt := <-eventCh:
-			println(">>>> Processing event")
 			eng.processEvent(evt)
 		case <-ctx.Done():
 			return nil

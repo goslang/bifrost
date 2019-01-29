@@ -1,5 +1,9 @@
 package engine
 
+import (
+	"context"
+)
+
 // An event is anything that changes the application's state.
 type Event interface {
 	Transition(*DataStore)
@@ -52,7 +56,7 @@ func RemoveChannel(name string) Event {
 	return fn
 }
 
-func Pop(queueName string) (Event, <-chan []byte) {
+func Pop(ctx context.Context, queueName string) (Event, <-chan []byte) {
 	publishCh := make(chan []byte)
 
 	var fn EventFn = func(ds *DataStore) {
@@ -63,8 +67,11 @@ func Pop(queueName string) (Event, <-chan []byte) {
 		}
 
 		go func() {
-			message := <-q.pop()
-			publishCh <- message
+			select {
+			case message := <-q.pop():
+				publishCh <- message
+			case <-ctx.Done():
+			}
 			close(publishCh)
 		}()
 	}

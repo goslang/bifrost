@@ -99,8 +99,6 @@ func (cc *channelController) subscribe(
 			// and if that fails, signal the main loop to exit.
 			_, _, err := c.ReadMessage()
 			if err != nil {
-				println(">>>> Closing connection")
-				println(err.Error())
 				close(closed)
 				return
 			}
@@ -108,7 +106,7 @@ func (cc *channelController) subscribe(
 	}()
 
 	for {
-		evt, messageCh := engine.Pop(channelName)
+		evt, messageCh := engine.Pop(req.Context(), channelName)
 
 		select {
 		case cc.eventsCh <- evt:
@@ -119,7 +117,6 @@ func (cc *channelController) subscribe(
 		select {
 		case message, ok := <-messageCh:
 			if !ok {
-				println("Channel closed")
 				return
 			}
 
@@ -151,7 +148,7 @@ func (cc *channelController) publish(
 
 	evt, confirmCh := engine.PushMessage(name, buf)
 	cc.eventsCh <- evt
-	println(">>>> Waiting for confirmation")
+
 	_, ok := <-confirmCh
 	if !ok {
 		responder.New(w).Json(map[string]string{
