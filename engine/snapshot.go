@@ -2,7 +2,11 @@ package engine
 
 import (
 	"context"
+	"encoding/gob"
+	"fmt"
 	"io"
+	"os"
+	"strconv"
 	"time"
 )
 
@@ -48,12 +52,27 @@ func Snapshot(encoder Encoder, done chan struct{}) Event {
 	var fn EventFn = func(ds *DataStore) {
 		newDs := ds.Copy()
 
-		// TODO: Pseudo code...
 		go func() {
 			defer close(done)
-			encoder.Encode(newDs)
+			err := encoder.Encode(newDs)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR: encoding snapshot: %v\n", err)
+			}
 		}()
 	}
 
 	return fn
+}
+
+func DefaultEncoderFactory(writer io.Writer) Encoder {
+	return gob.NewEncoder(writer)
+}
+
+func DefaultWriterFactory() io.WriteCloser {
+	filePrefix := "/usr/local/var/bifrost/"
+	fileName := filePrefix + "data-" + strconv.Itoa(int(time.Now().Unix())) + ".bin"
+
+	// TODO: Fix ignoring error
+	file, _ := os.Create(fileName)
+	return file
 }

@@ -2,7 +2,7 @@ package engine
 
 // Queue is essentially a ring buffer.
 type Queue struct {
-	Buffer   [][]byte
+	Buffer   []Message
 	WriteIdx int
 	limiter  chan bool
 
@@ -10,9 +10,14 @@ type Queue struct {
 	ch chan []byte
 }
 
+type Message struct {
+	Data      []byte
+	Delivered bool
+}
+
 func NewQueue(size int) *Queue {
 	q := &Queue{
-		Buffer:  make([][]byte, size),
+		Buffer:  make([]Message, size),
 		limiter: make(chan bool, size),
 		ch:      make(chan []byte),
 	}
@@ -24,17 +29,19 @@ func (q *Queue) Close() {
 	close(q.ch)
 }
 
-func (q *Queue) push(message []byte) bool {
+func (q *Queue) push(data []byte) bool {
 	select {
 	case q.limiter <- true:
 	default:
 		return false
 	}
 
+	message := Message{Data: data}
 	q.write(message)
 
 	go func() {
-		q.ch <- message
+		q.ch <- message.Data
+		message.Delivered = true
 		<-q.limiter
 	}()
 
@@ -45,7 +52,7 @@ func (q *Queue) pop() <-chan []byte {
 	return q.ch
 }
 
-func (q *Queue) write(message []byte) {
+func (q *Queue) write(message Message) {
 	newIdx := q.incr(q.WriteIdx)
 
 	q.Buffer[q.WriteIdx] = message
@@ -65,7 +72,7 @@ func (q *Queue) incr(idx int) int {
 
 func (q *Queue) Copy() *Queue {
 	newQ := *q
-	newQ.Buffer = make([][]byte, len(q.Buffer))
+	newQ.Buffer = make([]Message, len(q.Buffer))
 
 	copy(newQ.Buffer, q.Buffer)
 
