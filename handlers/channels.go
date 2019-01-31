@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"io/ioutil"
-	"log"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
@@ -21,12 +21,12 @@ var upgrader = websocket.Upgrader{
 }
 
 type channelController struct {
-	engine *engine.Engine
+	eventsCh chan<- engine.Event
 }
 
-func NewChannelController(eng *engine.Engine) *channelController {
+func NewChannelController(ch chan<- engine.Event) *channelController {
 	return &channelController{
-		engine: eng,
+		eventsCh: ch,
 	}
 }
 
@@ -36,7 +36,11 @@ func (cc *channelController) create(
 	p httprouter.Params,
 ) {
 	name := p.ByName("name")
-	cc.engine.AddChannel(name)
+	cc.eventsCh <- engine.AddChannel(name)
+
+	responder.New(w).Json(map[string]string{
+		"status": "ok",
+	})()
 }
 
 func (cc *channelController) get(
@@ -59,13 +63,13 @@ func (cc *channelController) list(
 	})()
 }
 
-func (cc *channelController) delete(
+func (cc *channelController) destroy(
 	w http.ResponseWriter,
 	req *http.Request,
 	p httprouter.Params,
 ) {
 	name := p.ByName("name")
-	cc.engine.RemoveChannel(name)
+	cc.eventsCh <- engine.RemoveChannel(name)
 
 	responder.New(w).Json(map[string]string{
 		"status": "ok",
@@ -102,10 +106,18 @@ func (cc *channelController) subscribe(
 	}()
 
 	for {
+		evt, messageCh := engine.Pop(req.Context(), channelName)
+
 		select {
-		case message, ok := <-cc.engine.Listen(channelName):
+		case cc.eventsCh <- evt:
+		case <-closed:
+			return
+		}
+
+		select {
+		case message, ok := <-messageCh:
 			if !ok {
-				break
+				return
 			}
 
 			err := c.WriteMessage(websocket.TextMessage, message)
@@ -134,9 +146,15 @@ func (cc *channelController) publish(
 			})()
 	}
 
-	if err := cc.engine.Publish(name, buf); err != nil {
-		log.Println(err)
-		log.Println("WARNING: Failed to publish message on channel", name)
+	evt, confirmCh := engine.PushMessage(name, buf)
+	cc.eventsCh <- evt
+
+	_, ok := <-confirmCh
+	if !ok {
+		responder.New(w).Json(map[string]string{
+			"status": "error",
+		})()
+		return
 	}
 
 	responder.New(w).Json(map[string]string{
@@ -150,15 +168,27 @@ func (cc *channelController) pop(
 	p httprouter.Params,
 ) {
 	name := p.ByName("name")
-	message, err := cc.engine.Pop(name)
-	if err != nil {
-		responder.New(w).Json(map[string]string{
-			"error": err.Error(),
-		})()
-		return
-	}
 
-	responder.New(w).Json(map[string]string{
-		"message": string(message),
-	})()
+	evt, ch := engine.PopNow(name)
+	cc.eventsCh <- evt
+
+	select {
+	case message, ok := <-ch:
+		if !ok {
+			responder.New(w).Status(404).Json(map[string]string{
+				"status": "error",
+			})()
+			return
+		}
+
+		responder.New(w).Json(map[string]string{
+			"message": string(message),
+		})()
+	case <-time.After(5 * time.Second):
+		responder.New(w).
+			Status(http.StatusServiceUnavailable).
+			Json(map[string]string{
+				"error": "timeout",
+			})()
+	}
 }

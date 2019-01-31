@@ -26,7 +26,7 @@ type Middlewarer interface {
 }
 
 // Middleware can be embedded in an object to automatically implement the
-// looksLikeMiddleware interface
+// Middlewarer interface
 type Middleware struct {
 	http.Handler
 }

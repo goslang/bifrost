@@ -1,81 +1,50 @@
 package engine
 
 import (
-	"errors"
+	"context"
+	"time"
 )
 
-var (
-	ErrNoRoute     = errors.New("Route not found.")
-	ErrBufferFull  = errors.New("Route buffer full.")
-	ErrBufferEmpty = errors.New("Route buffer empty.")
-)
-
+// Engine manages a list of queues and a continuous stream of events.
 type Engine struct {
-	// maxBuf is the number of messages to buffer before dropping
-	// messages.
-	maxBuf int
-
-	routes map[string]*Route
+	state *DataStore
 }
 
-func New(maxBuf int) *Engine {
+// New returns a new instance of the Bifrost Engine.
+func New() *Engine {
 	return &Engine{
-		maxBuf: maxBuf,
-		routes: make(map[string]*Route),
+		state: NewDataStore(),
 	}
 }
 
-func (eng *Engine) AddChannel(channelName string) {
-	eng.routes[channelName] = &Route{
-		ch: make(chan []byte, eng.maxBuf),
+// Process will read and process events from eventCh until the context is
+// done.
+func (eng *Engine) Process(ctx context.Context, eventCh chan Event) error {
+	go startSnapshots(ctx, eventCh)
+
+	for {
+		select {
+		case evt := <-eventCh:
+			eng.processEvent(evt)
+		case <-ctx.Done():
+			return nil
+		}
 	}
 }
 
-func (eng *Engine) RemoveChannel(channelName string) {
-	route, ok := eng.routes[channelName]
-	if ok {
-		route.Close()
-		eng.routes[channelName] = nil
-	}
+func (eng *Engine) processEvent(evt Event) {
+	evt.Transition(eng.state)
 }
 
-func (eng *Engine) Publish(channelName string, message []byte) error {
-	route, ok := eng.routes[channelName]
-	if !ok {
-		return ErrNoRoute
-	}
+func startSnapshots(ctx context.Context, eventCh chan Event) {
+	timer := SnapshotTimer(
+		ctx,
+		10*time.Second,
+		DefaultEncoderFactory,
+		DefaultWriteCloserFactory,
+	)
 
-	select {
-	case route.ch <- message:
-		return nil
-	default:
-		return ErrBufferFull
-	}
-}
-
-func (eng *Engine) Listen(channelName string) <-chan []byte {
-	route, ok := eng.routes[channelName]
-	if !ok {
-		// Make and return a closed channel if the requested channel does not
-		// exist in the engine.
-		ch := make(chan []byte)
-		close(ch)
-		return ch
-	}
-
-	return route.ch
-}
-
-func (eng *Engine) Pop(channelName string) ([]byte, error) {
-	route, ok := eng.routes[channelName]
-	if !ok {
-		return nil, ErrNoRoute
-	}
-
-	select {
-	case message := <-route.ch:
-		return message, nil
-	default:
-		return nil, ErrBufferEmpty
+	for snapshotEvt := range timer {
+		eventCh <- snapshotEvt
 	}
 }

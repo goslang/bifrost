@@ -6,16 +6,15 @@ import (
 	"github.com/goslang/bifrost/engine"
 )
 
-func NewRouter() *httprouter.Router {
+func NewRouter(eventsCh chan<- engine.Event) *httprouter.Router {
 	r := httprouter.New()
 
-	eng := engine.New(5)
-	channels := NewChannelController(eng)
+	channels := NewChannelController(eventsCh)
 
 	r.GET("/api/channels", channels.list)
 	r.GET("/api/channels/:name", channels.get)
 	r.POST("/api/channels/:name", channels.create)
-	r.DELETE("/api/channels/:name", channels.delete)
+	r.DELETE("/api/channels/:name", channels.destroy)
 
 	r.GET("/api/channels/:name/subscribe", channels.subscribe)
 	r.POST("/api/channels/:name/publish", channels.publish)
