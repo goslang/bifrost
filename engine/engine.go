@@ -2,20 +2,15 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"time"
 )
 
-var (
-	ErrNoQueue     = errors.New("Queue not found.")
-	ErrBufferFull  = errors.New("Queue buffer full.")
-	ErrBufferEmpty = errors.New("Queue buffer empty.")
-)
-
+// Engine manages a list of queues and a continuous stream of events.
 type Engine struct {
 	state *DataStore
 }
 
+// New returns a new instance of the Bifrost Engine.
 func New() *Engine {
 	return &Engine{
 		state: NewDataStore(),
@@ -46,7 +41,7 @@ func startSnapshots(ctx context.Context, eventCh chan Event) {
 		ctx,
 		10*time.Second,
 		DefaultEncoderFactory,
-		DefaultWriterFactory,
+		DefaultWriteCloserFactory,
 	)
 
 	for snapshotEvt := range timer {
