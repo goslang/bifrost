@@ -90,6 +90,9 @@ func DefaultEncoderFactory(writer io.Writer) (Encoder, error) {
 	return gob.NewEncoder(writer), nil
 }
 
+// DefaultWriteCloserFactory returns a new WriteCloserFactory that will write
+// to the file specified by `snapshotFile`. If the file already exists, it
+// will be copied to a file ending in `.bkp` before writing the new file.
 func DefaultWriteCloserFactory(snapshotFile string) WriteCloserFactory {
 	return func() (io.WriteCloser, error) {
 		snapshotBackupFile := snapshotFile + ".bkp"
