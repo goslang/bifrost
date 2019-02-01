@@ -34,15 +34,14 @@ func PushMessage(name string, message []byte) (Event, <-chan bool) {
 	return fn, confirmCh
 }
 
-func AddChannel(name string) Event {
+func AddChannel(name string, size int) Event {
 	var fn EventFn = func(ds *DataStore) {
 		_, ok := ds.Buffers[name]
 		if ok {
 			return
 		}
 
-		// TODO: Configure the buffer size.
-		ds.Buffers[name] = NewQueue(5)
+		ds.Buffers[name] = NewQueue(size)
 	}
 
 	return fn

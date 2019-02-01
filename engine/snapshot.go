@@ -10,7 +10,6 @@ import (
 )
 
 const snapshotFile = "/usr/local/var/bifrost/snapshot.data"
-const snapshotBackupFile = "/usr/local/var/bifrost/snapshot.bkp"
 
 type WriteCloserFactory func() (io.WriteCloser, error)
 type EncoderFactory func(io.Writer) (Encoder, error)
@@ -91,24 +90,24 @@ func DefaultEncoderFactory(writer io.Writer) (Encoder, error) {
 	return gob.NewEncoder(writer), nil
 }
 
-// DefaultWriteCloserFactory returns a new io.WriteCloser that will write to
-// `snapshotFile`. This function also maintains a single backup file of the
-// snapshot in case an error is encountered while performing file operations.
-func DefaultWriteCloserFactory() (io.WriteCloser, error) {
-	err := os.Rename(snapshotFile, snapshotBackupFile)
-	if err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
+func DefaultWriteCloserFactory(snapshotFile string) WriteCloserFactory {
+	return func() (io.WriteCloser, error) {
+		snapshotBackupFile := snapshotFile + ".bkp"
+		err := os.Rename(snapshotFile, snapshotBackupFile)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
 
-	err = os.Remove(snapshotFile)
-	if err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
+		err = os.Remove(snapshotFile)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
 
-	file, err := os.Create(snapshotFile)
-	if err != nil {
-		return nil, err
-	}
+		file, err := os.Create(snapshotFile)
+		if err != nil {
+			return nil, err
+		}
 
-	return file, nil
+		return file, nil
+	}
 }
