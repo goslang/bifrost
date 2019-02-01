@@ -21,12 +21,12 @@ var upgrader = websocket.Upgrader{
 }
 
 type channelController struct {
-	eventsCh chan<- engine.Event
+	EventsCh chan engine.Event
 }
 
-func NewChannelController(ch chan<- engine.Event) *channelController {
+func NewChannelController() *channelController {
 	return &channelController{
-		eventsCh: ch,
+		EventsCh: make(chan engine.Event),
 	}
 }
 
@@ -36,7 +36,7 @@ func (cc *channelController) create(
 	p httprouter.Params,
 ) {
 	name := p.ByName("name")
-	cc.eventsCh <- engine.AddChannel(name)
+	cc.EventsCh <- engine.AddChannel(name, 5)
 
 	responder.New(w).Json(map[string]string{
 		"status": "ok",
@@ -69,7 +69,7 @@ func (cc *channelController) destroy(
 	p httprouter.Params,
 ) {
 	name := p.ByName("name")
-	cc.eventsCh <- engine.RemoveChannel(name)
+	cc.EventsCh <- engine.RemoveChannel(name)
 
 	responder.New(w).Json(map[string]string{
 		"status": "ok",
@@ -109,7 +109,7 @@ func (cc *channelController) subscribe(
 		evt, messageCh := engine.Pop(req.Context(), channelName)
 
 		select {
-		case cc.eventsCh <- evt:
+		case cc.EventsCh <- evt:
 		case <-closed:
 			return
 		}
@@ -147,7 +147,7 @@ func (cc *channelController) publish(
 	}
 
 	evt, confirmCh := engine.PushMessage(name, buf)
-	cc.eventsCh <- evt
+	cc.EventsCh <- evt
 
 	_, ok := <-confirmCh
 	if !ok {
@@ -170,7 +170,7 @@ func (cc *channelController) pop(
 	name := p.ByName("name")
 
 	evt, ch := engine.PopNow(name)
-	cc.eventsCh <- evt
+	cc.EventsCh <- evt
 
 	select {
 	case message, ok := <-ch:

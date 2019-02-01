@@ -12,15 +12,14 @@ import (
 
 func Start() error {
 	eng := engine.New()
-	eventCh := make(chan engine.Event)
+	go eng.Run()
 
-	router := handlers.NewRouter(eventCh)
+	router, eventCh := handlers.NewRouter()
+	eng.Process(context.Background(), eventCh)
 
 	app, use := middleware.Wrap(router)
 	use(middleware.NewCors("*"))
 	use(&middleware.RequestLogger{})
 
-	ctx := context.Background()
-	go eng.Process(ctx, eventCh)
 	return http.ListenAndServe(":2727", app)
 }
