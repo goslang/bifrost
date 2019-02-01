@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Config captures configurable options for the Engine.
 type Config struct {
 	ctx context.Context
 
@@ -31,6 +32,8 @@ func SnapshotFilename(name string) Opt {
 	}
 }
 
+// Context sets the Engine's context, the Engine will exit when it is
+// `Done()`.
 func Context(ctx context.Context) Opt {
 	return func(conf Config) Config {
 		conf.ctx = ctx

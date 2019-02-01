@@ -10,11 +10,14 @@ type Queue struct {
 	ch chan []byte
 }
 
+// Message contains the actual data that should be passed to the consumer, and
+// tracks whether it has been delivered.
 type Message struct {
 	Data      []byte
 	Delivered bool
 }
 
+// NewQueue creates a Queue that contains up to `size` messages.
 func NewQueue(size int) *Queue {
 	q := &Queue{
 		Buffer:  make([]Message, size),
@@ -25,8 +28,19 @@ func NewQueue(size int) *Queue {
 	return q
 }
 
+// Close safely closes the Queue.
 func (q *Queue) Close() {
 	close(q.ch)
+}
+
+// Copy returns a deep copy of the queue and it's messages.
+func (q *Queue) Copy() *Queue {
+	newQ := *q
+	newQ.Buffer = make([]Message, len(q.Buffer))
+
+	copy(newQ.Buffer, q.Buffer)
+
+	return &newQ
 }
 
 func (q *Queue) push(data []byte) bool {
@@ -68,13 +82,4 @@ func (q *Queue) incr(idx int) int {
 		return 0
 	}
 	return idx + 1
-}
-
-func (q *Queue) Copy() *Queue {
-	newQ := *q
-	newQ.Buffer = make([]Message, len(q.Buffer))
-
-	copy(newQ.Buffer, q.Buffer)
-
-	return &newQ
 }
