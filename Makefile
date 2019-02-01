@@ -9,6 +9,6 @@ $(SERVER_BIN): ./**/*.go
 	go build -o $(SERVER_BIN) cmd/server/main.go
 
 clean:
-	rm $(SERVER_BIN)
+	if [ -e $(SERVER_BIN) ]; then rm $(SERVER_BIN); fi
 
 .PHONY: clean
