@@ -1,13 +1,15 @@
 package engine
 
-// Queue is essentially a ring buffer.
-type Queue struct {
-	Buffer   []Message
-	WriteIdx int
-	limiter  chan bool
+import (
+	"sync"
+)
 
-	// push channel that new items are sent to.
-	ch chan []byte
+// Queue manages the state for a queue of messages.
+type Queue struct {
+	Buffer  []Message
+	limiter chan bool
+
+	mu sync.Mutex
 }
 
 // Message contains the actual data that should be passed to the consumer, and
@@ -20,9 +22,8 @@ type Message struct {
 // NewQueue creates a Queue that contains up to `size` messages.
 func NewQueue(size int) *Queue {
 	q := &Queue{
-		Buffer:  make([]Message, size),
+		Buffer:  make([]Message, 0, size),
 		limiter: make(chan bool, size),
-		ch:      make(chan []byte),
 	}
 
 	return q
@@ -30,13 +31,13 @@ func NewQueue(size int) *Queue {
 
 // Close safely closes the Queue.
 func (q *Queue) Close() {
-	close(q.ch)
+	//close(q.ch)
 }
 
 // Copy returns a deep copy of the queue and it's messages.
 func (q *Queue) Copy() *Queue {
 	newQ := *q
-	newQ.Buffer = make([]Message, len(q.Buffer))
+	newQ.Buffer = make([]Message, 0, cap(q.Buffer))
 
 	copy(newQ.Buffer, q.Buffer)
 
@@ -51,35 +52,61 @@ func (q *Queue) push(data []byte) bool {
 	}
 
 	message := Message{Data: data}
-	q.write(message)
-
-	go func() {
-		q.ch <- message.Data
-		message.Delivered = true
-		<-q.limiter
-	}()
+	q.safePush(message)
 
 	return true
 }
 
-func (q *Queue) pop() <-chan []byte {
-	return q.ch
-}
-
-func (q *Queue) write(message Message) {
-	newIdx := q.incr(q.WriteIdx)
-
-	q.Buffer[q.WriteIdx] = message
-	q.WriteIdx = newIdx
-
-	return
-}
-
-// incr increments idx by 1 unless it equals len(q.Buffer), and then restarts
-// it at 0.
-func (q *Queue) incr(idx int) int {
-	if idx == len(q.Buffer)-1 {
-		return 0
+// pop pops the next item off of the queue. Its second return value is set to
+// false if no data is currently available.
+func (q *Queue) pop() ([]byte, bool) {
+	select {
+	case <-q.limiter:
+	default:
+		return nil, false
 	}
-	return idx + 1
+
+	message := q.safePop()
+	return message.Data, true
+}
+
+// listenOne pops the next item off of the queue and sends it to the returned
+// channel when data becomes available.
+func (q *Queue) listenOne() <-chan []byte {
+	ch := make(chan []byte)
+
+	go func() {
+		defer close(ch)
+
+		<-q.limiter
+		message := q.safePop()
+
+		ch <- message.Data
+	}()
+
+	return ch
+}
+
+func (q *Queue) safePop() Message {
+	defer q.lockAndUnlock("safePop")()
+
+	message := q.Buffer[0]
+	q.Buffer = q.Buffer[1:]
+	return message
+}
+
+func (q *Queue) safePush(message Message) {
+	defer q.lockAndUnlock("safePush")()
+
+	q.Buffer = append(q.Buffer, message)
+}
+
+func (q *Queue) lockAndUnlock(hint string) func() {
+	q.mu.Lock()
+	println("locked", hint)
+
+	return func() {
+		q.mu.Unlock()
+		println("Unlocked", hint)
+	}
 }
