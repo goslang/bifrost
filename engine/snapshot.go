@@ -20,6 +20,10 @@ type Encoder interface {
 	Encode(interface{}) error
 }
 
+type Decoder interface {
+	Decode(interface{}) error
+}
+
 // SnapshotTimer produces Snapshot Events on the returned channel until ctx
 // is Done.
 // `interval specifies how often to produce events.
@@ -84,6 +88,12 @@ func Snapshot(encoder Encoder, done chan struct{}) Event {
 
 	return fn
 }
+
+//func Restore(decoder Decoder) Event {
+//	var fn EventFn = func(ds *DataStore) {
+//		err := decoder.Decode(ds)
+//	}
+//}
 
 // DefaultEncoderFactory returns a new gob.Encoder for the provided writer.
 func DefaultEncoderFactory(writer io.Writer) (Encoder, error) {
