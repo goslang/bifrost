@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 )
@@ -41,16 +40,19 @@ func (eng *Engine) With(opts ...Opt) *Engine {
 }
 
 // Run starts the engine processing messages
-func (eng *Engine) Run() {
-	eng.restoreState()
-	go eng.startSnapshots()
+func (eng *Engine) Run() error {
+	if err := eng.restoreState(); err != nil {
+		return err
+	}
+
+	eng.startSnapshots()
 
 	for {
 		select {
 		case evt := <-eng.eventCh:
 			evt.Transition(eng.state)
 		case <-eng.conf.ctx.Done():
-			return
+			return nil
 		}
 	}
 }
@@ -72,25 +74,25 @@ func (eng *Engine) Process(ctx context.Context, eventCh <-chan Event) {
 	}()
 }
 
-func (eng *Engine) restoreState() {
+func (eng *Engine) restoreState() error {
 	reader, err := DefaultReadCloser(eng.conf.snapshotFilename)
-	if err != nil {
-		// TODO: This should introspect the error to determine whether it is
-		// fatal or not.
-		fmt.Fprintln(os.Stderr, "ERROR: Failed to load snapshot file!")
-		return
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
 	}
 
-	// TODO: ignoring error
-	decoder, _ := DefaultDecoder(reader)
+	decoder, err := DefaultDecoder(reader)
+	if err != nil {
+		return err
+	}
 
 	err = decoder.Decode(&eng.state)
 	if err != nil {
-		// TODO: This should be more graceful than a panic, but if we can't
-		// decode the file it should be considered a fatal error.
-		fmt.Fprintln(os.Stderr, "ERROR: Failed to decode snapshot file!")
-		panic(err)
+		return err
 	}
+
+	return nil
 }
 
 func (eng *Engine) startSnapshots() {
@@ -101,7 +103,5 @@ func (eng *Engine) startSnapshots() {
 		DefaultWriteCloserFactory(eng.conf.snapshotFilename),
 	)
 
-	for snapshotEvt := range timer {
-		eng.eventCh <- snapshotEvt
-	}
+	eng.Process(eng.conf.ctx, timer)
 }
