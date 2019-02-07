@@ -12,7 +12,12 @@ import (
 
 func Start() error {
 	eng := engine.New()
-	go eng.Run()
+
+	go func() {
+		if err := eng.Run(); err != nil {
+			panic(err)
+		}
+	}()
 
 	router, eventCh := handlers.NewRouter()
 	eng.Process(context.Background(), eventCh)

@@ -4,7 +4,8 @@ import (
 	"context"
 )
 
-// An event is anything that changes the application's state.
+// Event is an action that causes the engine to transition from one state to
+// the next.
 type Event interface {
 	Transition(*DataStore)
 }
@@ -18,10 +19,10 @@ func (fn EventFn) Transition(ds *DataStore) {
 	fn(ds)
 }
 
-// PushMessage creates an event that sends `message` to the channel named
-// `name`. It also returns a confirmation channel that it will write to once
-// the message has been successfully added to the queue. If the message cannot
-// be added, the confirmation channel will be closed without sending a value.
+// PushMessage creates an event that sends the message to the named channel.
+// It also returns a confirmation channel that it will write to once the
+// message has been successfully added to the queue. If the message cannot be
+// added, the confirmation channel will be closed without sending a value.
 func PushMessage(name string, message []byte) (Event, <-chan bool) {
 	confirmCh := make(chan bool, 1)
 
@@ -41,8 +42,9 @@ func PushMessage(name string, message []byte) (Event, <-chan bool) {
 	return fn, confirmCh
 }
 
-// AddChannel returns an Event that will create a new channel named `name`.
-func AddChannel(name string, size int) Event {
+// AddChannel returns an Event that will create a new channel with the
+// appropriate name and size.
+func AddChannel(name string, size uint) Event {
 	var fn EventFn = func(ds *DataStore) {
 		_, ok := ds.Buffers[name]
 		if ok {
@@ -55,8 +57,8 @@ func AddChannel(name string, size int) Event {
 	return fn
 }
 
-// RemoveChannel returns an Event that removes the channel named `name` from
-// the engine.
+// RemoveChannel returns an Event that removes the named channel from the
+// engine.
 func RemoveChannel(name string) Event {
 	var fn EventFn = func(ds *DataStore) {
 		delete(ds.Buffers, name)
@@ -79,7 +81,7 @@ func Pop(ctx context.Context, queueName string) (Event, <-chan []byte) {
 
 		go func() {
 			select {
-			case message := <-q.pop():
+			case message := <-q.listenOne():
 				publishCh <- message
 			case <-ctx.Done():
 			}
@@ -103,12 +105,9 @@ func PopNow(queueName string) (Event, <-chan []byte) {
 			return
 		}
 
-		select {
-		case message, ok := <-q.pop():
-			if ok {
-				publishCh <- message
-			}
-		default:
+		data, ok := q.pop()
+		if ok {
+			publishCh <- data
 		}
 	}
 

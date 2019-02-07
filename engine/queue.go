@@ -1,85 +1,115 @@
 package engine
 
-// Queue is essentially a ring buffer.
+import (
+	"sync"
+)
+
+// Queue manages the state for a queue of messages.
 type Queue struct {
-	Buffer   []Message
-	WriteIdx int
-	limiter  chan bool
+	// Buffer is an array of arbitrary messages.
+	Buffer [][]byte
 
-	// push channel that new items are sent to.
-	ch chan []byte
-}
+	// Size is the maximum number of messages  to buffer in this queue at any
+	// given time.
+	Size uint
 
-// Message contains the actual data that should be passed to the consumer, and
-// tracks whether it has been delivered.
-type Message struct {
-	Data      []byte
-	Delivered bool
+	// limiterCh guarantees that we will never A) push onto a full queue, or
+	// B) pop off of an empty queue. Don't use this directly, instead call
+	// `q.limiter()` to ensure that it has been properly initialized.
+	limiterCh chan bool
+
+	// mu protects concurrent operations on the Queue.
+	mu sync.Mutex
+
+	// init ensures that the limiterCh is initialized once and only once.
+	init sync.Once
 }
 
 // NewQueue creates a Queue that contains up to `size` messages.
-func NewQueue(size int) *Queue {
+func NewQueue(size uint) *Queue {
 	q := &Queue{
-		Buffer:  make([]Message, size),
-		limiter: make(chan bool, size),
-		ch:      make(chan []byte),
+		Size:   size,
+		Buffer: make([][]byte, 0, size),
 	}
 
 	return q
 }
 
-// Close safely closes the Queue.
-func (q *Queue) Close() {
-	close(q.ch)
-}
-
 // Copy returns a deep copy of the queue and it's messages.
 func (q *Queue) Copy() *Queue {
 	newQ := *q
-	newQ.Buffer = make([]Message, len(q.Buffer))
+	newQ.Buffer = make([][]byte, len(q.Buffer), q.Size)
 
 	copy(newQ.Buffer, q.Buffer)
 
 	return &newQ
 }
 
-func (q *Queue) push(data []byte) bool {
+func (q *Queue) push(message []byte) bool {
 	select {
-	case q.limiter <- true:
+	case q.limiter() <- true:
 	default:
 		return false
 	}
 
-	message := Message{Data: data}
-	q.write(message)
-
-	go func() {
-		q.ch <- message.Data
-		message.Delivered = true
-		<-q.limiter
-	}()
-
+	q.safePush(message)
 	return true
 }
 
-func (q *Queue) pop() <-chan []byte {
-	return q.ch
-}
-
-func (q *Queue) write(message Message) {
-	newIdx := q.incr(q.WriteIdx)
-
-	q.Buffer[q.WriteIdx] = message
-	q.WriteIdx = newIdx
-
-	return
-}
-
-// incr increments idx by 1 unless it equals len(q.Buffer), and then restarts
-// it at 0.
-func (q *Queue) incr(idx int) int {
-	if idx == len(q.Buffer)-1 {
-		return 0
+// pop pops the next item off of the queue. Its second return value is set to
+// false if no data is currently available.
+func (q *Queue) pop() ([]byte, bool) {
+	select {
+	case <-q.limiter():
+	default:
+		return nil, false
 	}
-	return idx + 1
+
+	return q.safePop(), true
+}
+
+// listenOne pops the next item off of the queue and sends it to the returned
+// channel when data becomes available.
+func (q *Queue) listenOne() <-chan []byte {
+	ch := make(chan []byte)
+
+	go func() {
+		defer close(ch)
+
+		message := q.safePop()
+		ch <- message
+	}()
+
+	return ch
+}
+
+func (q *Queue) safePop() []byte {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	message := q.Buffer[0]
+	q.Buffer = q.Buffer[1:]
+	return message
+}
+
+func (q *Queue) safePush(message []byte) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	q.Buffer = append(q.Buffer, message)
+}
+
+// limiter wraps the q's limiterCh to make sure it is initialized properly.
+// This way we can guarantee that listeners will be setup properly even if the
+// queue has just been reloaded from disk.
+func (q *Queue) limiter() chan bool {
+	q.init.Do(func() {
+		q.limiterCh = make(chan bool, q.Size)
+
+		for range q.Buffer {
+			q.limiterCh <- true
+		}
+	})
+
+	return q.limiterCh
 }

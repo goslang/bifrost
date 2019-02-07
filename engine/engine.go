@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"os"
 	"time"
 )
 
@@ -39,15 +40,19 @@ func (eng *Engine) With(opts ...Opt) *Engine {
 }
 
 // Run starts the engine processing messages
-func (eng *Engine) Run() {
-	go eng.startSnapshots(eng.conf.ctx, eng.eventCh)
+func (eng *Engine) Run() error {
+	if err := eng.restoreState(); err != nil {
+		return err
+	}
+
+	eng.startSnapshots()
 
 	for {
 		select {
 		case evt := <-eng.eventCh:
-			eng.processEvent(evt)
+			evt.Transition(eng.state)
 		case <-eng.conf.ctx.Done():
-			return
+			return nil
 		}
 	}
 }
@@ -69,19 +74,34 @@ func (eng *Engine) Process(ctx context.Context, eventCh <-chan Event) {
 	}()
 }
 
-func (eng *Engine) processEvent(evt Event) {
-	evt.Transition(eng.state)
+func (eng *Engine) restoreState() error {
+	reader, err := DefaultReadCloser(eng.conf.snapshotFilename)
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	decoder, err := DefaultDecoder(reader)
+	if err != nil {
+		return err
+	}
+
+	err = decoder.Decode(&eng.state)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (eng *Engine) startSnapshots(ctx context.Context, eventCh chan Event) {
+func (eng *Engine) startSnapshots() {
 	timer := SnapshotTimer(
-		ctx,
+		eng.conf.ctx,
 		eng.conf.snapshotInterval,
-		DefaultEncoderFactory,
+		DefaultEncoder,
 		DefaultWriteCloserFactory(eng.conf.snapshotFilename),
 	)
 
-	for snapshotEvt := range timer {
-		eventCh <- snapshotEvt
-	}
+	eng.Process(eng.conf.ctx, timer)
 }
