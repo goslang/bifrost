@@ -1,6 +1,9 @@
 package engine
 
 import (
+	"bytes"
+	"encoding/gob"
+	"reflect"
 	"sync"
 )
 
@@ -16,24 +19,31 @@ type Queue struct {
 // NewQueue creates a Queue that contains up to `size` messages.
 func NewQueue(size uint) *Queue {
 	q := &Queue{
-		Buffer:  make([][]byte, 0, size),
-		limiter: make(chan bool, size),
+		Size:   size,
+		Buffer: make([][]byte, 0, size),
 	}
 
+	q.init()
 	return q
 }
 
 // Copy returns a deep copy of the queue and it's messages.
 func (q *Queue) Copy() *Queue {
 	newQ := *q
-	newQ.Buffer = make([][]byte, 0, cap(q.Buffer))
+	newQ.Buffer = make([][]byte, len(q.Buffer), q.Size)
 
 	copy(newQ.Buffer, q.Buffer)
 
 	return &newQ
 }
 
-func (q *Queue) init()
+func (q *Queue) init() {
+	q.limiter = make(chan bool, q.Size)
+
+	for range q.Buffer {
+		q.limiter <- true
+	}
+}
 
 func (q *Queue) push(message []byte) bool {
 	select {
@@ -93,17 +103,36 @@ func (q *Queue) safePush(message []byte) {
 	q.Buffer = append(q.Buffer, message)
 }
 
-// QueueAlias is only used for decoding Queue objects.
-type QueueAlias Queue
-
 func (q *Queue) GobDecode(raw []byte) error {
-	var qa QueueAlias
-
 	reader := bytes.NewReader(raw)
-	if err := gob.NewDecoder(reader).Decode(&qa); err != nil {
-		return err
+	decoder := gob.NewDecoder(reader)
+
+	for _, val := range q.EncodableValues() {
+		if err := decoder.DecodeValue(val); err != nil {
+			return err
+		}
 	}
 
-	*q = qa
 	q.init()
+	return nil
+}
+
+func (q *Queue) GobEncode() ([]byte, error) {
+	buffer := &bytes.Buffer{}
+	encoder := gob.NewEncoder(buffer)
+
+	for _, val := range q.EncodableValues() {
+		if err := encoder.EncodeValue(val); err != nil {
+			return nil, err
+		}
+	}
+
+	return buffer.Bytes(), nil
+}
+
+func (q *Queue) EncodableValues() []reflect.Value {
+	return []reflect.Value{
+		reflect.ValueOf(&q.Size),
+		reflect.ValueOf(&q.Buffer),
+	}
 }

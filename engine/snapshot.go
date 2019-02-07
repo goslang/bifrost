@@ -12,7 +12,10 @@ import (
 const snapshotFile = "/usr/local/var/bifrost/snapshot.data"
 
 type WriteCloserFactory func() (io.WriteCloser, error)
+type ReadCloserFactory func() (io.ReadCloser, error)
 type EncoderFactory func(io.Writer) (Encoder, error)
+
+//type DecoderFactory func(io.Reader) (Decoder, error)
 
 // Encoder is a generalized interface implemented by Go's various encoding
 // libraries.
@@ -95,9 +98,13 @@ func Snapshot(encoder Encoder, done chan struct{}) Event {
 //	}
 //}
 
-// DefaultEncoderFactory returns a new gob.Encoder for the provided writer.
-func DefaultEncoderFactory(writer io.Writer) (Encoder, error) {
+// DefaultEncoder returns a new gob.Encoder for the provided writer.
+func DefaultEncoder(writer io.Writer) (Encoder, error) {
 	return gob.NewEncoder(writer), nil
+}
+
+func DefaultDecoder(reader io.Reader) (Decoder, error) {
+	return gob.NewDecoder(reader), nil
 }
 
 // DefaultWriteCloserFactory returns a new WriteCloserFactory that will write
@@ -105,22 +112,36 @@ func DefaultEncoderFactory(writer io.Writer) (Encoder, error) {
 // will be copied to a file ending in `.bkp` before writing the new file.
 func DefaultWriteCloserFactory(snapshotFile string) WriteCloserFactory {
 	return func() (io.WriteCloser, error) {
-		snapshotBackupFile := snapshotFile + ".bkp"
-		err := os.Rename(snapshotFile, snapshotBackupFile)
-		if err != nil && !os.IsNotExist(err) {
-			return nil, err
-		}
-
-		err = os.Remove(snapshotFile)
-		if err != nil && !os.IsNotExist(err) {
-			return nil, err
-		}
-
-		file, err := os.Create(snapshotFile)
-		if err != nil {
-			return nil, err
-		}
-
-		return file, nil
+		return DefaultWriteCloser(snapshotFile)
 	}
+}
+
+func DefaultWriteCloser(snapshotFile string) (io.WriteCloser, error) {
+	snapshotBackupFile := snapshotFile + ".bkp"
+	err := os.Rename(snapshotFile, snapshotBackupFile)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	err = os.Remove(snapshotFile)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	file, err := os.Create(snapshotFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return file, nil
+}
+
+func DefaultReadCloserFactory(snapshotFile string) ReadCloserFactory {
+	return func() (io.ReadCloser, error) {
+		return DefaultReadCloser(snapshotFile)
+	}
+}
+
+func DefaultReadCloser(snapshotFile string) (io.ReadCloser, error) {
+	return os.Open(snapshotFile)
 }

@@ -44,7 +44,7 @@ func PushMessage(name string, message []byte) (Event, <-chan bool) {
 
 // AddChannel returns an Event that will create a new channel with the
 // appropriate name and size.
-func AddChannel(name string, size int) Event {
+func AddChannel(name string, size uint) Event {
 	var fn EventFn = func(ds *DataStore) {
 		_, ok := ds.Buffers[name]
 		if ok {
