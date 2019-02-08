@@ -9,7 +9,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/goslang/bifrost/engine"
-	"github.com/goslang/bifrost/lib/responder"
+	"github.com/goslang/bifrost/server/lib/responder"
 )
 
 var upgrader = websocket.Upgrader{
