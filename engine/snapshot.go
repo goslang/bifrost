@@ -92,12 +92,6 @@ func Snapshot(encoder Encoder, done chan struct{}) Event {
 	return fn
 }
 
-//func Restore(decoder Decoder) Event {
-//	var fn EventFn = func(ds *DataStore) {
-//		err := decoder.Decode(ds)
-//	}
-//}
-
 // DefaultEncoder returns a new gob.Encoder for the provided writer.
 func DefaultEncoder(writer io.Writer) (Encoder, error) {
 	return gob.NewEncoder(writer), nil

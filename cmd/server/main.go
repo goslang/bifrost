@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/goslang/bifrost"
+	"github.com/goslang/bifrost/server"
 )
 
 func main() {
-	err := bifrost.Start()
+	err := server.Start()
 	println(err.Error())
 }

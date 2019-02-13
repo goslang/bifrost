@@ -1,13 +1,12 @@
 // Heimdal! Open the Bifrost!
-package bifrost
+package server
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/goslang/bifrost/engine"
-	"github.com/goslang/bifrost/handlers"
-	"github.com/goslang/bifrost/lib/middleware"
+	"github.com/goslang/bifrost/server/handlers"
+	"github.com/goslang/bifrost/server/lib/middleware"
 )
 
 func Start() error {
@@ -19,8 +18,7 @@ func Start() error {
 		}
 	}()
 
-	router, eventCh := handlers.NewRouter()
-	eng.Process(context.Background(), eventCh)
+	router := handlers.NewRouter(eng)
 
 	app, use := middleware.Wrap(router)
 	use(middleware.NewCors("*"))
