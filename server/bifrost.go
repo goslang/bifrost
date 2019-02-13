@@ -2,7 +2,6 @@
 package server
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/goslang/bifrost/engine"
@@ -19,8 +18,7 @@ func Start() error {
 		}
 	}()
 
-	router, eventCh := handlers.NewRouter()
-	eng.Process(context.Background(), eventCh)
+	router := handlers.NewRouter(eng)
 
 	app, use := middleware.Wrap(router)
 	use(middleware.NewCors("*"))

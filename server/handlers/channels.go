@@ -5,20 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/goslang/bifrost/engine"
 	"github.com/goslang/bifrost/server/lib/responder"
 )
-
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(_ *http.Request) bool {
-		// Allow everything right now. Our CORS Middleware should protect us
-		// from any attacks.
-		return true
-	},
-}
 
 type channelController struct {
 	EventsCh chan engine.Event
@@ -74,60 +65,6 @@ func (cc *channelController) destroy(
 	responder.New(w).Json(map[string]string{
 		"status": "ok",
 	})()
-}
-
-func (cc *channelController) subscribe(
-	w http.ResponseWriter,
-	req *http.Request,
-	p httprouter.Params,
-) {
-	channelName := p.ByName("name")
-
-	c, err := upgrader.Upgrade(w, req, nil)
-	if err != nil {
-		return
-	}
-	defer func() {
-		c.Close()
-	}()
-
-	closed := make(chan bool)
-	go func() {
-		for {
-			// Watch for a closed connection. Apparently writing to a closed
-			// connection doesn't fail as expected, so continually try to read
-			// and if that fails, signal the main loop to exit.
-			_, _, err := c.ReadMessage()
-			if err != nil {
-				close(closed)
-				return
-			}
-		}
-	}()
-
-	for {
-		evt, messageCh := engine.Pop(req.Context(), channelName)
-
-		select {
-		case cc.EventsCh <- evt:
-		case <-closed:
-			return
-		}
-
-		select {
-		case message, ok := <-messageCh:
-			if !ok {
-				return
-			}
-
-			err := c.WriteMessage(websocket.TextMessage, message)
-			if err != nil {
-				return
-			}
-		case <-closed:
-			return
-		}
-	}
 }
 
 func (cc *channelController) publish(
