@@ -37,11 +37,30 @@ func (cc *channelController) create(
 func (cc *channelController) get(
 	w http.ResponseWriter,
 	req *http.Request,
-	_ httprouter.Params,
+	p httprouter.Params,
 ) {
-	responder.New(w).Json(map[string]string{
-		"status": "ok",
-	})()
+	name := p.ByName("name")
+
+	evt, ch := engine.GetQueueDetails(name)
+	cc.EventsCh <- evt
+
+	select {
+	case details, ok := <-ch:
+		if !ok {
+			responder.New(w).Status(404)()
+			return
+		}
+
+		responder.New(w).Json(map[string]interface{}{
+			"status": "ok",
+			"data":   details,
+		})()
+	case <-req.Context().Done():
+		responder.New(w).Json(map[string]string{
+			"status": "error",
+			"error":  "canceled",
+		})
+	}
 }
 
 func (cc *channelController) list(
@@ -119,13 +138,15 @@ func (cc *channelController) pop(
 		}
 
 		responder.New(w).Json(map[string]string{
-			"message": string(message),
+			"status": "ok",
+			"data":   string(message),
 		})()
 	case <-time.After(5 * time.Second):
 		responder.New(w).
 			Status(http.StatusServiceUnavailable).
 			Json(map[string]string{
-				"error": "timeout",
+				"status": "error",
+				"error":  "timeout",
 			})()
 	}
 }
