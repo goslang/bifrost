@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 )
 
@@ -12,6 +13,17 @@ func failResponse(err error) Response {
 		return err
 	}
 
+}
+
+func failHTTPStatus(response *http.Response) Response {
+	return func(_ interface{}) error {
+		return fmt.Errorf("Error retrieving resource: %v", response.Status)
+	}
+}
+
+// No error was encountered but no data was returned, i.e. HTTP 204
+func emptyResponse(_ interface{}) error {
+	return nil
 }
 
 func jsonDecodeResponse(resp *http.Response) Response {
