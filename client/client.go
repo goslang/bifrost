@@ -1,6 +1,9 @@
 package client
 
 import (
+	"bytes"
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -57,9 +60,19 @@ func (client *Client) hostString() string {
 }
 
 func CreateChannel(name string, size uint) FetchOpt {
+	buf, _ := json.Marshal(map[string]interface{}{
+		"name": name,
+		"size": size,
+	})
+
+	reader := ioutil.NopCloser(
+		bytes.NewReader(buf),
+	)
+
 	return reduceOpts(
 		Method("POST"),
 		Path("channels"),
+		Body(reader),
 	)
 }
 

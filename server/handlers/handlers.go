@@ -15,8 +15,8 @@ func NewRouter(eng *engine.Engine) *httprouter.Router {
 	subscriptions := NewSubscriptionController()
 
 	r.GET("/api/channels", channels.list)
+	r.POST("/api/channels", channels.create)
 	r.GET("/api/channels/:name", channels.get)
-	r.POST("/api/channels/:name", channels.create)
 	r.DELETE("/api/channels/:name", channels.destroy)
 
 	r.POST("/api/channels/:name/publish", channels.publish)

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -24,10 +26,24 @@ func NewChannelController() *channelController {
 func (cc *channelController) create(
 	w http.ResponseWriter,
 	req *http.Request,
-	p httprouter.Params,
+	_ httprouter.Params,
 ) {
-	name := p.ByName("name")
-	cc.EventsCh <- engine.AddChannel(name, 5)
+	var parsed struct {
+		Name string
+		Size uint
+	}
+
+	if err := json.NewDecoder(req.Body).Decode(&parsed); err != nil {
+		responder.New(w).
+			Status(http.StatusUnprocessableEntity).
+			Json(map[string]string{
+				"status": "error",
+				"Error":  "Unprocessable Entity",
+			})()
+		return
+	}
+
+	cc.EventsCh <- engine.AddChannel(parsed.Name, parsed.Size)
 
 	responder.New(w).Json(map[string]string{
 		"status": "ok",
@@ -107,9 +123,11 @@ func (cc *channelController) publish(
 
 	_, ok := <-confirmCh
 	if !ok {
-		responder.New(w).Json(map[string]string{
-			"status": "error",
-		})()
+		responder.New(w).
+			Status(http.StatusConflict).
+			Json(map[string]string{
+				"status": "error",
+			})()
 		return
 	}
 
