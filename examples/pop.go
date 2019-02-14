@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	channelName := flag.String("channel", "test", "Specify the channel to publish to.")
+	channelName := flag.String("channel", "test", "Specify the channel to pop a message from")
 
 	flag.Parse()
 
