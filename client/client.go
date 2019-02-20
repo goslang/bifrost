@@ -90,7 +90,9 @@ func ListChannels(req *http.Request) {
 	)(req)
 }
 
-//func (client *Client) DeleteChannel(name string) error {
-//	_, err := client.Fetch(Method("DELETE"), Path("channels"))
-//	return err
-//}
+func DestroyChannel(name string) FetchOpt {
+	return reduceOpts(
+		Method("DELETE"),
+		Path("channels/"+name),
+	)
+}

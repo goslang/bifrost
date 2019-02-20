@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -8,17 +9,16 @@ import (
 )
 
 func main() {
+	name := flag.String("channel", "", "The name of the channel to remove.")
+	flag.Parse()
+
 	cl, err := bifrost.New("127.0.0.1", 2727)
 	exitOnErr(err)
 
-	var channels []bifrost.Channel
-	err = cl.Do(bifrost.ListChannels)(&channels)
+	err = cl.Do(bifrost.DestroyChannel(*name)).Error()
 	exitOnErr(err)
 
-	fmt.Println("Name\t\tMax\tSize")
-	for _, c := range channels {
-		fmt.Printf("%v\t%v\t%v\n", c.Name, c.Max, c.Size)
-	}
+	fmt.Println("Removed channel", *name)
 }
 
 func exitOnErr(err error) {

@@ -90,13 +90,13 @@ func (eng *Engine) ListQueues() []QueueDetail {
 	return details
 }
 
-func (eng *Engine) GetQueueDetails(name string) (detail QueueDetail, ok bool) {
+func (eng *Engine) GetQueueDetails(name string) (QueueDetail, bool) {
 	q, ok := eng.state.Buffers[name]
 	if !ok {
-		return
+		return QueueDetail{}, false
 	}
 
-	detail = QueueDetail{
+	detail := QueueDetail{
 		Name: name,
 		Max:  uint(q.Size),
 		Size: uint(len(q.Buffer)),
