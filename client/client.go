@@ -32,8 +32,8 @@ func (client *Client) Do(opts ...FetchOpt) Response {
 		URL: &url.URL{},
 	}
 
-	reduceOpts(opts...)(req)
 	reduceOpts(
+		reduceOpts(opts...),
 		Proto("http"),
 		Host(client.hostString()),
 	)(req)
