@@ -2,6 +2,7 @@
 package server
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/goslang/bifrost/engine"
@@ -24,5 +25,6 @@ func Start() error {
 	use(middleware.NewCors("*"))
 	use(&middleware.RequestLogger{})
 
+	log.Println("Server starting...")
 	return http.ListenAndServe(":2727", app)
 }

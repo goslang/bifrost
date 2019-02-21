@@ -74,6 +74,45 @@ func (eng *Engine) Process(ctx context.Context, eventCh <-chan Event) {
 	}()
 }
 
+func (eng *Engine) ListQueues() []QueueDetail {
+	var details []QueueDetail
+
+	for name, q := range eng.state.Buffers {
+		detail := QueueDetail{
+			Name: name,
+			Max:  uint(q.Size),
+			Size: uint(len(q.Buffer)),
+		}
+
+		details = append(details, detail)
+	}
+
+	return details
+}
+
+func (eng *Engine) GetQueueDetails(name string) (QueueDetail, bool) {
+	q, ok := eng.state.Buffers[name]
+	if !ok {
+		return QueueDetail{}, false
+	}
+
+	detail := QueueDetail{
+		Name: name,
+		Max:  uint(q.Size),
+		Size: uint(len(q.Buffer)),
+	}
+
+	return detail, true
+}
+
+// Stats returns only an interface to querying the engine about it's current
+// statistics.
+func (eng *Engine) Stats() StatsAPI {
+	// Engine implements the StatsAPI, so just return it to expose access to
+	// the stats subset of the API.
+	return eng
+}
+
 func (eng *Engine) restoreState() error {
 	reader, err := DefaultReadCloser(eng.conf.snapshotFilename)
 	if os.IsNotExist(err) {

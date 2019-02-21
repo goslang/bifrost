@@ -113,34 +113,3 @@ func PopNow(queueName string) (Event, <-chan []byte) {
 
 	return fn, publishCh
 }
-
-type queueDetails struct {
-	Name string
-	Size uint
-	Max  uint
-}
-
-// NOTE: This event is temporary and will be removed! Use at your own peril!
-// Currently being used to hook into the engine and get status on a particular
-// queue. Seeing as it's readonly and there's no expewxtation of it being
-// perfectly up to date, this should not be run on the engines main goroutine.
-func GetQueueDetails(queueName string) (Event, <-chan queueDetails) {
-	detailsCh := make(chan queueDetails)
-
-	var fn EventFn = func(ds *DataStore) {
-		defer close(detailsCh)
-
-		q, ok := ds.Buffers[queueName]
-		if !ok {
-			return
-		}
-
-		detailsCh <- queueDetails{
-			Name: queueName,
-			Max:  uint(q.Size),
-			Size: uint(len(q.Buffer)),
-		}
-	}
-
-	return fn, detailsCh
-}

@@ -32,8 +32,8 @@ func (client *Client) Do(opts ...FetchOpt) Response {
 		URL: &url.URL{},
 	}
 
-	reduceOpts(opts...)(req)
 	reduceOpts(
+		reduceOpts(opts...),
 		Proto("http"),
 		Host(client.hostString()),
 	)(req)
@@ -83,12 +83,16 @@ func GetChannel(name string) FetchOpt {
 	)
 }
 
-//func (client *Client) ListChannels() ([]Channels, error) {
-//	_, err := client.Fetch(Method("GET"), Path("channels"))
-//	return nil, err
-//}
-//
-//func (client *Client) DeleteChannel(name string) error {
-//	_, err := client.Fetch(Method("DELETE"), Path("channels"))
-//	return err
-//}
+func ListChannels(req *http.Request) {
+	reduceOpts(
+		Method("GET"),
+		Path("channels"),
+	)(req)
+}
+
+func DestroyChannel(name string) FetchOpt {
+	return reduceOpts(
+		Method("DELETE"),
+		Path("channels/"+name),
+	)
+}

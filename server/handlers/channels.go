@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -14,11 +13,13 @@ import (
 )
 
 type channelController struct {
+	Stats    engine.StatsAPI
 	EventsCh chan engine.Event
 }
 
-func NewChannelController() *channelController {
+func NewChannelController(stats engine.StatsAPI) *channelController {
 	return &channelController{
+		Stats:    stats,
 		EventsCh: make(chan engine.Event),
 	}
 }
@@ -57,26 +58,20 @@ func (cc *channelController) get(
 ) {
 	name := p.ByName("name")
 
-	evt, ch := engine.GetQueueDetails(name)
-	cc.EventsCh <- evt
-
-	select {
-	case details, ok := <-ch:
-		if !ok {
-			responder.New(w).Status(404)()
-			return
-		}
-
-		responder.New(w).Json(map[string]interface{}{
-			"status": "ok",
-			"data":   details,
-		})()
-	case <-req.Context().Done():
-		responder.New(w).Json(map[string]string{
-			"status": "error",
-			"error":  "canceled",
-		})
+	detail, ok := cc.Stats.GetQueueDetails(name)
+	if !ok {
+		responder.New(w).
+			Status(http.StatusNotFound).
+			Json(map[string]interface{}{
+				"status": "not found",
+			})()
+		return
 	}
+
+	responder.New(w).Json(map[string]interface{}{
+		"status": "ok",
+		"data":   detail,
+	})()
 }
 
 func (cc *channelController) list(
@@ -84,8 +79,11 @@ func (cc *channelController) list(
 	req *http.Request,
 	p httprouter.Params,
 ) {
-	responder.New(w).Json(map[string]string{
+	queues := cc.Stats.ListQueues()
+
+	responder.New(w).Json(map[string]interface{}{
 		"status": "ok",
+		"data":   queues,
 	})()
 }
 

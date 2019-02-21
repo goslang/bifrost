@@ -9,6 +9,7 @@ import (
 type Channel struct {
 	Name string
 	Size uint
+	Max  uint
 }
 
 func NewChannel(name string) *Channel {
