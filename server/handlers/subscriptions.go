@@ -7,7 +7,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/goslang/bifrost/engine"
-	"github.com/goslang/bifrost/server/lib/responder"
+	//"github.com/goslang/bifrost/server/lib/responder"
 )
 
 type subscriptionController struct {
@@ -29,36 +29,36 @@ func (sc *subscriptionController) subscribe(
 	req *http.Request,
 	p httprouter.Params,
 ) {
-	channelName := p.ByName("name")
-
-	c, closed, err := sc.upgradeConnection(w, req, nil)
-	if err != nil {
-		responder.New(w).Status(400)()
-	}
-
-	for {
-		evt, messageCh := engine.Pop(req.Context(), channelName)
-
-		select {
-		case sc.EventsCh <- evt:
-		case <-closed:
-			return
-		}
-
-		select {
-		case message, ok := <-messageCh:
-			if !ok {
-				return
-			}
-
-			err := c.WriteMessage(websocket.TextMessage, message)
-			if err != nil {
-				return
-			}
-		case <-closed:
-			return
-		}
-	}
+	//	channelName := p.ByName("name")
+	//
+	//	c, closed, err := sc.upgradeConnection(w, req, nil)
+	//	if err != nil {
+	//		responder.New(w).Status(400)()
+	//	}
+	//
+	//	for {
+	//		evt, messageCh := engine.Pop(req.Context(), channelName)
+	//
+	//		select {
+	//		case sc.EventsCh <- evt:
+	//		case <-closed:
+	//			return
+	//		}
+	//
+	//		select {
+	//		case message, ok := <-messageCh:
+	//			if !ok {
+	//				return
+	//			}
+	//
+	//			err := c.WriteMessage(websocket.TextMessage, message)
+	//			if err != nil {
+	//				return
+	//			}
+	//		case <-closed:
+	//			return
+	//		}
+	//	}
 }
 
 func (sc *subscriptionController) upgradeConnection(

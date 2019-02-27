@@ -77,7 +77,7 @@ func SnapshotTimer(
 // to serialize the Engine state. It will close() the `done` channel when the
 // snapshot is complete.
 func Snapshot(encoder Encoder, done chan struct{}) Event {
-	var fn EventFn = func(ds *DataStore) {
+	var fn EventFn = func(ds *DataStore) ChangeSet {
 		newDs := ds.Copy()
 
 		go func() {
@@ -87,6 +87,8 @@ func Snapshot(encoder Encoder, done chan struct{}) Event {
 				fmt.Fprintf(os.Stderr, "ERROR: encoding snapshot: %v\n", err)
 			}
 		}()
+
+		return ChangeSet{}
 	}
 
 	return fn

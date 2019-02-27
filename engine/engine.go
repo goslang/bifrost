@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -17,6 +18,10 @@ type Engine struct {
 	state   *DataStore
 	eventCh chan Event
 	conf    Config
+
+	listenerIDMu      sync.Mutex
+	currentListenerID int64
+	listeners         map[int64]ListenerPair
 }
 
 // New returns a new instance of the Bifrost Engine.
@@ -25,6 +30,8 @@ func New(opts ...Opt) *Engine {
 		state:   NewDataStore(),
 		eventCh: make(chan Event),
 	}
+
+	//eng.Process(node.Events())
 
 	return eng.With(defaultOpts...).With(opts...)
 }
@@ -50,7 +57,7 @@ func (eng *Engine) Run() error {
 	for {
 		select {
 		case evt := <-eng.eventCh:
-			evt.Transition(eng.state)
+			eng.applyEvent(evt)
 		case <-eng.conf.ctx.Done():
 			return nil
 		}
@@ -72,6 +79,18 @@ func (eng *Engine) Process(ctx context.Context, eventCh <-chan Event) {
 			}
 		}
 	}()
+}
+
+func (eng *Engine) applyEvent(evt Event) {
+	changeSet := evt.Transition(eng.state)
+
+	// TODO: This is not an efficient way to kick off the matching listeners.
+	for _, pair := range eng.listeners {
+		if pair.Matcher.Match(evt) {
+			// Listeners are safe to run on their own goroutines.
+			go pair.Listener(evt, changeSet)
+		}
+	}
 }
 
 func (eng *Engine) ListQueues() []QueueDetail {
@@ -105,12 +124,38 @@ func (eng *Engine) GetQueueDetails(name string) (QueueDetail, bool) {
 	return detail, true
 }
 
-// Stats returns only an interface to querying the engine about it's current
+// Stats returns an interface for querying the engine about it's current
 // statistics.
-func (eng *Engine) Stats() StatsAPI {
+func (eng *Engine) StatsAPI() StatsAPI {
 	// Engine implements the StatsAPI, so just return it to expose access to
 	// the stats subset of the API.
 	return eng
+}
+
+// Listener returns an interface that encapsulates the listener portion of the
+// Engine API.
+func (eng *Engine) ListenerAPI() ListenerAPI {
+	return eng
+}
+
+// Register registers an event listener with the engine and returns its
+// listenerID.
+func (eng *Engine) Register(matcher EventMatcher, l Listener) int64 {
+	eng.listenerIDMu.Lock()
+	defer eng.listenerIDMu.Unlock()
+
+	eng.currentListenerID++
+	eng.listeners[eng.currentListenerID] = ListenerPair{
+		Listener: l,
+		Matcher:  matcher,
+	}
+
+	return eng.currentListenerID
+}
+
+// Deregister removes the Listener with the corresponding listenerID.
+func (eng *Engine) Deregister(listenerID int64) {
+	delete(eng.listeners, listenerID)
 }
 
 func (eng *Engine) restoreState() error {
