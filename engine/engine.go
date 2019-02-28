@@ -27,8 +27,9 @@ type Engine struct {
 // New returns a new instance of the Bifrost Engine.
 func New(opts ...Opt) *Engine {
 	eng := &Engine{
-		state:   NewDataStore(),
-		eventCh: make(chan Event),
+		state:     NewDataStore(),
+		eventCh:   make(chan Event),
+		listeners: make(map[int64]ListenerPair),
 	}
 
 	//eng.Process(node.Events())

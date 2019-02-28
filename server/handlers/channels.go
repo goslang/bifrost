@@ -2,25 +2,31 @@ package handlers
 
 import (
 	//"encoding/json"
-	//"io/ioutil"
+	"io/ioutil"
 	"net/http"
-	//"time"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/satori/go.uuid"
 
 	"github.com/goslang/bifrost/engine"
 	"github.com/goslang/bifrost/server/lib/responder"
 )
 
 type channelController struct {
-	Stats    engine.StatsAPI
-	EventsCh chan engine.Event
+	Stats       engine.StatsAPI
+	ListenerAPI engine.ListenerAPI
+	EventsCh    chan engine.Event
 }
 
-func NewChannelController(stats engine.StatsAPI) *channelController {
+func NewChannelController(
+	stats engine.StatsAPI,
+	listenerAPI engine.ListenerAPI,
+) *channelController {
 	return &channelController{
-		Stats:    stats,
-		EventsCh: make(chan engine.Event),
+		Stats:       stats,
+		ListenerAPI: listenerAPI,
+		EventsCh:    make(chan engine.Event),
 	}
 }
 
@@ -105,17 +111,22 @@ func (cc *channelController) publish(
 	req *http.Request,
 	p httprouter.Params,
 ) {
-	//	name := p.ByName("name")
-	//
-	//	buf, err := ioutil.ReadAll(req.Body)
-	//	if err != nil {
-	//		responder.New(w).
-	//			Status(http.StatusBadRequest).
-	//			Json(map[string]string{
-	//				"error": "Failed to read request body",
-	//			})()
-	//	}
-	//
+	name := p.ByName("name")
+
+	buf, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		responder.New(w).
+			Status(http.StatusBadRequest).
+			Json(map[string]string{
+				"error": "Failed to read request body",
+			})()
+	}
+
+	cc.EventsCh <- engine.Push{
+		Channel: name,
+		Message: buf,
+	}
+
 	//	evt, confirmCh := engine.PushMessage(name, buf)
 	//	cc.EventsCh <- evt
 	//
@@ -129,9 +140,9 @@ func (cc *channelController) publish(
 	//		return
 	//	}
 	//
-	//	responder.New(w).Json(map[string]string{
-	//		"status": "ok",
-	//	})()
+	responder.New(w).Json(map[string]string{
+		"status": "ok",
+	})()
 }
 
 func (cc *channelController) pop(
@@ -139,30 +150,49 @@ func (cc *channelController) pop(
 	req *http.Request,
 	p httprouter.Params,
 ) {
-	//	name := p.ByName("name")
-	//
-	//	evt, ch := engine.PopNow(name)
-	//	cc.EventsCh <- evt
-	//
-	//	select {
-	//	case message, ok := <-ch:
-	//		if !ok {
-	//			responder.New(w).Status(404).Json(map[string]string{
-	//				"status": "error",
-	//			})()
-	//			return
-	//		}
-	//
-	//		responder.New(w).Json(map[string]string{
-	//			"status": "ok",
-	//			"data":   string(message),
-	//		})()
-	//	case <-time.After(5 * time.Second):
-	//		responder.New(w).
-	//			Status(http.StatusServiceUnavailable).
-	//			Json(map[string]string{
-	//				"status": "error",
-	//				"error":  "timeout",
-	//			})()
-	//	}
+	name := p.ByName("name")
+	clientID := uuid.NewV4().String()
+
+	// Add a listener for popped messages directed to us.
+	messageCh := make(chan []byte)
+	lid := cc.ListenerAPI.Register(popListener(clientID, messageCh))
+	defer close(messageCh)
+	defer cc.ListenerAPI.Deregister(lid)
+
+	// Now that we are listening, ask the engine to pop an item off of the
+	// queue.
+	cc.EventsCh <- engine.Pop{
+		ClientID: clientID,
+		Channel:  name,
+	}
+
+	resp := responder.New(w)
+
+	select {
+	case message := <-messageCh:
+		resp.Json(map[string]string{
+			"status": "ok",
+			"data":   string(message),
+		})()
+
+	case <-time.After(5 * time.Second):
+		resp.Status(http.StatusServiceUnavailable).
+			Json(map[string]string{
+				"status": "error",
+				"error":  "timeout",
+			})()
+	}
+}
+
+func popListener(clientID string, ch chan<- []byte) (engine.EventMatcher, engine.Listener) {
+	matcher := engine.EventMatcher{
+		EventType: engine.EventPop,
+		ClientID:  clientID,
+	}
+
+	listener := func(_ engine.Event, changes engine.ChangeSet) {
+		ch <- changes.Popped
+	}
+
+	return matcher, listener
 }

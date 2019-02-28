@@ -12,9 +12,16 @@ type ListenerPair struct {
 
 type EventMatcher struct {
 	ClientID    string
-	EventType   string
 	ChannelName string
+	EventType   EventType
 }
+
+type EventType uint
+
+const (
+	EventPush EventType = (1 + iota)
+	EventPop
+)
 
 func (em EventMatcher) Match(evt Event) (matches bool) {
 	defer func() {
@@ -42,6 +49,18 @@ func (em EventMatcher) matchClient(evt Event) {
 }
 
 func (em EventMatcher) matchType(evt Event) {
+	if em.EventType == 0 {
+		return
+	}
+
+	// Panic if the event is not of the expected type. The panic will be
+	// caught inside of em.Match.
+	switch em.EventType {
+	case EventPush:
+		_ = evt.(Push)
+	case EventPop:
+		_ = evt.(Pop)
+	}
 }
 
 func (em EventMatcher) matchChannel(evt Event) {
@@ -50,8 +69,7 @@ func (em EventMatcher) matchChannel(evt Event) {
 type Listener func(Event, ChangeSet)
 
 // PushListener will wait for matching push events and send a Pop event when
-// they occur. To receive Popped items, setup a corresponding PopListener to
-// receive them.
+// they occur. To receive Popped items, setup a corresponding PopListener.
 func PushListener(clientId string) (Listener, chan Event) {
 	eventsCh := make(chan Event)
 
@@ -70,8 +88,7 @@ func PushListener(clientId string) (Listener, chan Event) {
 	return fn, eventsCh
 }
 
-// PopListener pops a single item off of the queue and sends it to the
-// returned channel.
+// PopListener receives items that have been popped off of a queue.
 func PopListener() (Listener, <-chan []byte) {
 	// I prefer classic rock myself
 

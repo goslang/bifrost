@@ -11,7 +11,7 @@ import (
 func NewRouter(eng *engine.Engine) *httprouter.Router {
 	r := httprouter.New()
 
-	channels := NewChannelController(eng.StatsAPI())
+	channels := NewChannelController(eng.StatsAPI(), eng.ListenerAPI())
 	subscriptions := NewSubscriptionController()
 
 	r.GET("/api/channels", channels.list)
