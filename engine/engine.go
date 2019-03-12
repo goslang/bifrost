@@ -74,11 +74,11 @@ func (eng *Engine) Process(ctx context.Context, eventCh <-chan Event) {
 	}()
 }
 
-func (eng *Engine) ListQueues() []QueueDetail {
-	var details []QueueDetail
+func (eng *Engine) ListChannels() []ChannelDetail {
+	var details []ChannelDetail
 
-	for name, q := range eng.state.Buffers {
-		detail := QueueDetail{
+	for name, q := range eng.state.Channels {
+		detail := ChannelDetail{
 			Name: name,
 			Max:  uint(q.Size),
 			Size: uint(len(q.Buffer)),
@@ -90,13 +90,13 @@ func (eng *Engine) ListQueues() []QueueDetail {
 	return details
 }
 
-func (eng *Engine) GetQueueDetails(name string) (QueueDetail, bool) {
-	q, ok := eng.state.Buffers[name]
+func (eng *Engine) GetChannelDetails(name string) (ChannelDetail, bool) {
+	q, ok := eng.state.Channels[name]
 	if !ok {
-		return QueueDetail{}, false
+		return ChannelDetail{}, false
 	}
 
-	detail := QueueDetail{
+	detail := ChannelDetail{
 		Name: name,
 		Max:  uint(q.Size),
 		Size: uint(len(q.Buffer)),

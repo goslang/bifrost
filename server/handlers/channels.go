@@ -58,7 +58,7 @@ func (cc *channelController) get(
 ) {
 	name := p.ByName("name")
 
-	detail, ok := cc.Stats.GetQueueDetails(name)
+	detail, ok := cc.Stats.GetChannelDetails(name)
 	if !ok {
 		responder.New(w).
 			Status(http.StatusNotFound).
@@ -79,7 +79,7 @@ func (cc *channelController) list(
 	req *http.Request,
 	p httprouter.Params,
 ) {
-	queues := cc.Stats.ListQueues()
+	queues := cc.Stats.ListChannels()
 
 	responder.New(w).Json(map[string]interface{}{
 		"status": "ok",

@@ -29,7 +29,7 @@ func PushMessage(name string, message []byte) (Event, <-chan bool) {
 	var fn EventFn = func(ds *DataStore) {
 		defer close(confirmCh)
 
-		q, ok := ds.Buffers[name]
+		q, ok := ds.Channels[name]
 		if !ok {
 			return
 		}
@@ -46,12 +46,12 @@ func PushMessage(name string, message []byte) (Event, <-chan bool) {
 // appropriate name and size.
 func AddChannel(name string, size uint) Event {
 	var fn EventFn = func(ds *DataStore) {
-		_, ok := ds.Buffers[name]
+		_, ok := ds.Channels[name]
 		if ok {
 			return
 		}
 
-		ds.Buffers[name] = NewQueue(size)
+		ds.Channels[name] = NewChannel(size)
 	}
 
 	return fn
@@ -61,7 +61,7 @@ func AddChannel(name string, size uint) Event {
 // engine.
 func RemoveChannel(name string) Event {
 	var fn EventFn = func(ds *DataStore) {
-		delete(ds.Buffers, name)
+		delete(ds.Channels, name)
 	}
 
 	return fn
@@ -73,7 +73,7 @@ func Pop(ctx context.Context, queueName string) (Event, <-chan []byte) {
 	publishCh := make(chan []byte)
 
 	var fn EventFn = func(ds *DataStore) {
-		q, ok := ds.Buffers[queueName]
+		q, ok := ds.Channels[queueName]
 		if !ok {
 			close(publishCh)
 			return
@@ -100,7 +100,7 @@ func PopNow(queueName string) (Event, <-chan []byte) {
 	var fn EventFn = func(ds *DataStore) {
 		defer close(publishCh)
 
-		q, ok := ds.Buffers[queueName]
+		q, ok := ds.Channels[queueName]
 		if !ok {
 			return
 		}

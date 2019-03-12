@@ -2,13 +2,13 @@ package engine
 
 // DataStore contains the Engine's current state.
 type DataStore struct {
-	Buffers map[string]*Queue
+	Channels map[string]*Channel
 }
 
 // NewDataStore initializes a new DataStore
 func NewDataStore() *DataStore {
 	return &DataStore{
-		Buffers: make(map[string]*Queue),
+		Channels: make(map[string]*Channel),
 	}
 }
 
@@ -16,8 +16,8 @@ func NewDataStore() *DataStore {
 func (ds *DataStore) Copy() *DataStore {
 	newDs := NewDataStore()
 
-	for name, buf := range ds.Buffers {
-		newDs.Buffers[name] = buf.Copy()
+	for name, buf := range ds.Channels {
+		newDs.Channels[name] = buf.Copy()
 	}
 
 	return newDs
