@@ -3,12 +3,12 @@ package engine
 // StatsAPI provides methods to access up-to-date statistics about the
 // Engine's current state.
 type StatsAPI interface {
-	GetQueueDetails(string) (QueueDetail, bool)
-	ListQueues() []QueueDetail
+	GetChannelDetails(string) (ChannelDetail, bool)
+	ListChannels() []ChannelDetail
 }
 
-// QueueDetail represents current stats for a particular queue.
-type QueueDetail struct {
+// ChannelDetail represents current stats for a particular queue.
+type ChannelDetail struct {
 	Name string `json:"name"`
 	Size uint   `json:"size"`
 	Max  uint   `json:"max"`

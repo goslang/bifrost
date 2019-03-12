@@ -12,7 +12,6 @@ func failResponse(err error) Response {
 	return func(_ interface{}) error {
 		return err
 	}
-
 }
 
 func failHTTPStatus(response *http.Response) Response {

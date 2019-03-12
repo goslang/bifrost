@@ -36,6 +36,7 @@ github.com/josharian/impl v0.0.0-20180228163738-3d0f908298c4 h1:gmIVMdGlVf5e6Yo6
 github.com/josharian/impl v0.0.0-20180228163738-3d0f908298c4/go.mod h1:t4Tr0tn92eq5ISef4cS5plFAMYAqZlAXtgUcKE6y8nw=
 github.com/jstemmer/gotags v1.4.1 h1:aWIyXsU3lTDqhsEC49MP85p2cUUWr2ptvdGNqqGA3r4=
 github.com/jstemmer/gotags v1.4.1/go.mod h1:b6J3X0bsLbR4C5SgSx3V3KjuWTtmRzcmWPbTkWZ49PA=
+github.com/julienschmidt/httprouter v1.2.0 h1:TDTW5Yz1mjftljbcKqRcrYhd4XeOoI98t+9HbQbYf7g=
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/kaeuferportal/stack2struct v0.0.0-20150211121835-6838fbadc918/go.mod h1:NJqYJawsNAISZjHm5G+YrXaIERNywUxBhQD24wZREKA=
 github.com/kisielk/errcheck v1.2.0 h1:reN85Pxc5larApoH1keMBiu2GWtPqXQ1nc9gx+jOU+E=
