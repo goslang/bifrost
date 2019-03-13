@@ -42,7 +42,7 @@ func main() {
 	if err != nil {
 		// handle error...
 	}
-	fmt.Println("Name=%v\nMax=%v", channnel.Name, channel.Max)
+	fmt.Printf("Name=%v\nMax=%v\n", channnel.Name, channel.Max)
 
 	// Let's try publishing a message.
 	resp := cl.Do(
