@@ -25,31 +25,30 @@ import (
 
 func main() {
 	name := "test.channel"
-	size := 10
+	max := 10
 
 	// First, create client object and do any error checking
 	cl, _ := bifrost.New("127.0.0.1", 2727)
 
-
 	// Second, create a new channel on the server to send messages through.
-	resp := cl.Do(bifrost.CreateChannel(name, size))
-	if err := resp.Error(); err != nil {
+	err := cl.Do(bifrost.CreateChannel(name, max)).Error()
+	if err != nil {
 		// handle error...
 	}
 
 	// Now that the channel has been created, we can see it in the API
 	var channel bifrost.Channel
-	resp = cl.Do(bifrost.GetChannel(name))
-	if err := resp.Decode(&channel); err != nil {
+	err = cl.Do(bifrost.GetChannel(name)).Decode(&channel)
+	if err != nil {
 		// handle error...
 	}
 	fmt.Println("Name=%v\nMax=%v", channnel.Name, channel.Max)
 
 	// Let's try publishing a message.
-	resp = cl.Do(
+	resp := cl.Do(
 		channel.Publish("Very important message to pass")
 	)
-	if err := resp.Error(); err != nil {
+	if resp.Error() != nil {
 		// handle error...
 	}
 
