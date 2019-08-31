@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	//"encoding/json"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -35,26 +35,23 @@ func (cc *channelController) create(
 	req *http.Request,
 	_ httprouter.Params,
 ) {
-	//	var parsed struct {
-	//		Name string
-	//		Size uint
-	//	}
-	//
-	//	if err := json.NewDecoder(req.Body).Decode(&parsed); err != nil {
-	//		responder.New(w).
-	//			Status(http.StatusUnprocessableEntity).
-	//			Json(map[string]string{
-	//				"status": "error",
-	//				"Error":  "Unprocessable Entity",
-	//			})()
-	//		return
-	//	}
-	//
-	//	cc.EventsCh <- engine.AddChannel(parsed.Name, parsed.Size)
-	//
-	//	responder.New(w).Json(map[string]string{
-	//		"status": "ok",
-	//	})()
+	var evt engine.AddChannel
+
+	if err := json.NewDecoder(req.Body).Decode(&evt); err != nil {
+		responder.New(w).
+			Status(http.StatusUnprocessableEntity).
+			Json(map[string]string{
+				"status": "error",
+				"Error":  "Unprocessable Entity",
+			})()
+		return
+	}
+
+	cc.EventsCh <- evt
+
+	responder.New(w).Json(map[string]string{
+		"status": "ok",
+	})()
 }
 
 func (cc *channelController) get(
@@ -98,12 +95,12 @@ func (cc *channelController) destroy(
 	req *http.Request,
 	p httprouter.Params,
 ) {
-	//	name := p.ByName("name")
-	//	cc.EventsCh <- engine.RemoveChannel(name)
-	//
-	//	responder.New(w).Json(map[string]string{
-	//		"status": "ok",
-	//	})()
+	name := p.ByName("name")
+	cc.EventsCh <- engine.RemoveChannel{name}
+
+	responder.New(w).Json(map[string]string{
+		"status": "ok",
+	})()
 }
 
 func (cc *channelController) publish(

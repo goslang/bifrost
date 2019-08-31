@@ -10,7 +10,7 @@ import (
 var defaultOpts = []Opt{
 	Context(context.Background()),
 	SnapshotInterval(10 * time.Second),
-	SnapshotFilename("/usr/local/var/bifrost/snapshot.data"),
+	SnapshotFilename("./snapshot.data"),
 }
 
 // Engine manages a list of queues and a continuous stream of events.

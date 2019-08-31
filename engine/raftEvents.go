@@ -26,6 +26,32 @@ type ChangeSet struct {
 	Removed string
 }
 
+type AddChannel struct {
+	Name string
+	Size uint
+}
+
+func (evt AddChannel) Transition(store *DataStore) ChangeSet {
+	_, ok := store.Buffers[evt.Name]
+	if ok {
+		return ChangeSet{}
+	}
+
+	store.Buffers[evt.Name] = NewQueue(evt.Size)
+	return ChangeSet{Added: evt.Name}
+}
+
+type RemoveChannel struct {
+	Name string
+}
+
+func (evt RemoveChannel) Transition(store *DataStore) ChangeSet {
+	delete(store.Buffers, evt.Name)
+	return ChangeSet{
+		Removed: evt.Name,
+	}
+}
+
 type Push struct {
 	Channel string
 	Message []byte
